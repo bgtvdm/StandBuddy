@@ -456,7 +456,7 @@
         barDiv.className = 'day-bar';
         barDiv.innerHTML = `
           <div class="day-count">${day.completed > 0 ? day.completed : ''}</div>
-          <div class="bar-fill ${day.completed === 0 ? 'empty' : ''}" style="height: ${Math.max(heightPercent, 8)}%"></div>
+          <div class="bar-fill ${day.completed === 0 ? 'empty' : ''}" style="height: ${Math.round(Math.max(heightPercent, 8) * 0.48)}px"></div>
           <div class="day-label">${day.dayName}</div>
         `;
         weekChart.appendChild(barDiv);
