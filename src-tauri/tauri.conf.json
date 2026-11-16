@@ -1,0 +1,27 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "StandBuddy",
+  "version": "2.0.0",
+  "identifier": "com.standbuddy.app",
+  "build": { "frontendDist": "ui-dist" },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [],
+    "security": { "csp": null }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis"],
+    "icon": ["../assets/tray.ico"],
+    "publisher": "bgtvdm",
+    "copyright": "MIT",
+    "shortDescription": "Standing breaks, bedtime and gaming limits",
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "installerIcon": "../assets/tray.ico",
+        "installerHooks": "installer-hooks.nsh"
+      }
+    }
+  }
+}

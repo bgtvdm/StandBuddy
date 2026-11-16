@@ -40,33 +40,14 @@ When a break is due, StandBuddy covers the whole screen until the countdown ends
 
 ## Install
 
-StandBuddy ships as a Windows zip, there is no installer.
-
-### With an AI agent
-
-Paste this into Claude Code, Codex, Hermes or any agent that can run commands on your computer:
-
-```text
-Install StandBuddy from https://github.com/bgtvdm/StandBuddy.
-1. Download the StandBuddy-*-win.zip asset of the latest release
-   (https://api.github.com/repos/bgtvdm/StandBuddy/releases/latest).
-2. Quit StandBuddy if it is running (tray icon → Quit).
-3. Extract the zip into %LOCALAPPDATA%\Programs\StandBuddy, overwriting files
-   in place if it is already there. Settings and stats live elsewhere and stay.
-4. Start StandBuddy.exe from that folder and check that the tray icon appears.
-5. If Windows SmartScreen blocks it, tell me to click "More info" → "Run anyway".
-```
-
-SmartScreen asks once because the app isn't code-signed. That click is yours.
-
-### By hand
-
-1. Download `StandBuddy-<version>-win.zip` from the [latest release](https://github.com/bgtvdm/StandBuddy/releases/latest).
-2. Extract it to a folder you'll keep, for example `%LOCALAPPDATA%\Programs\StandBuddy`.
-3. Run `StandBuddy.exe`. If SmartScreen shows "Unknown publisher", click **More info** → **Run anyway**.
+1. Download `StandBuddy_<version>_x64-setup.exe` from the [latest release](https://github.com/bgtvdm/StandBuddy/releases/latest).
+2. Run it. If SmartScreen shows "Unknown publisher", click **More info** → **Run anyway** (the app isn't code-signed).
+3. The installer needs no admin rights. It adds Start menu and desktop shortcuts and starts StandBuddy in the tray.
 4. Right-click the tray icon → **Settings** to set the interval and turn on **Launch at startup**.
 
-To update, quit StandBuddy, extract the new zip over the same folder and start it again.
+To update, run the newer installer. Settings and stats live in `%APPDATA%\standbuddy` and stay. To remove the app, use **Settings → Apps → Installed apps → StandBuddy → Uninstall**.
+
+Coming from 1.x (the zip version)? Quit it from the tray, run the installer, then delete the old unzipped folder. The installer turns off the old version's autostart for you.
 
 ## How it works
 
