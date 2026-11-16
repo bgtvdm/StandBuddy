@@ -3,7 +3,7 @@
   "productName": "StandBuddy",
   "version": "2.0.0",
   "identifier": "com.standbuddy.app",
-  "build": { "frontendDist": "ui-dist" },
+  "build": { "frontendDist": "../ui" },
   "app": {
     "withGlobalTauri": true,
     "windows": [],
