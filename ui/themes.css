@@ -256,3 +256,28 @@
   --overlay-danger-soft: rgba(232, 122, 122, 0.5);
   --overlay-danger-fill: rgba(232, 122, 122, 0.25);
 }
+
+/* ========================================
+   DARK VARIANT of the Settings/Stats windows
+   Add `dark` next to the theme class: <html class="theme-warm dark">.
+   Rebuilt from each theme's overlay palette, so every theme has both modes.
+   ======================================== */
+html.dark {
+  color-scheme: dark;
+  --bg-base: var(--overlay-bg-1);
+  --bg-card: color-mix(in srgb, var(--overlay-text) 6%, var(--overlay-bg-1));
+  --bg-stat: var(--bg-card);
+  --bg-input: color-mix(in srgb, var(--overlay-text) 7%, var(--overlay-bg-1));
+  --border-subtle: color-mix(in srgb, var(--overlay-text) 13%, transparent);
+  --border-focus: var(--overlay-accent);
+  --accent: var(--overlay-accent);
+  --accent-hover: color-mix(in srgb, var(--overlay-accent) 86%, white);
+  --accent-soft: var(--overlay-accent-glow);
+  --accent-glow: var(--overlay-accent-dim);
+  --text-primary: var(--overlay-text);
+  --text-secondary: var(--overlay-text-secondary);
+  --text-muted: var(--overlay-text-muted);
+  --text-on-accent: var(--overlay-bg-1);
+  --danger: var(--overlay-danger);
+  --danger-soft: color-mix(in srgb, var(--overlay-danger) 14%, transparent);
+}

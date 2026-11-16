@@ -15,6 +15,11 @@
   };
   let onReset = null;
 
+  // Frameless Settings/Stats windows: the page header marked [data-drag] moves the window.
+  document.addEventListener('mousedown', (e) => {
+    if (e.button === 0 && e.target.closest('[data-drag]') && !e.target.closest('button')) inv('drag_self');
+  });
+
   window.electronAPI = {
     onSettingsLoad: load,
     onBreakStart: load,

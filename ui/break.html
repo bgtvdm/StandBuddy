@@ -216,7 +216,7 @@
       <div class="progress-bar" id="progressBar"></div>
     </div>
 
-    <div class="emergency-section">
+    <div class="emergency-section" id="emergencySection">
       <button class="emergency-btn" id="emergencyBtn">
         <div class="hold-progress" id="holdProgress"></div>
         <span id="btnText">Emergency Unlock</span>
@@ -337,6 +337,9 @@
     window.electronAPI.onBreakStart((data) => {
       if (data.theme) {
         document.documentElement.className = `theme-${data.theme}`;
+      }
+      if (data.emergencyUnlock === false) {
+        document.getElementById('emergencySection').style.display = 'none';
       }
       totalDuration = data.duration;
       remaining = data.duration;

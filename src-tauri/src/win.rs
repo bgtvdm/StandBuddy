@@ -5,7 +5,7 @@ use crate::St;
 use serde_json::Value;
 use std::{thread, time::Duration};
 use tauri::{
-    window::Color, AppHandle, Manager, PhysicalSize, WebviewUrl, WebviewWindow,
+    window::Color, AppHandle, Manager, WebviewUrl, WebviewWindow,
     WebviewWindowBuilder,
 };
 
@@ -17,8 +17,8 @@ pub fn is_overlay(label: &str) -> bool {
 }
 
 // Mirrors --overlay-bg-1 / --bg-base in themes.css.
-fn theme_bg(theme: &str, overlay: bool) -> Color {
-    let (dark, light): (u32, u32) = match theme {
+fn theme_bg(theme: &str, dark: bool) -> Color {
+    let (dark_bg, light_bg): (u32, u32) = match theme {
         "ocean" => (0x0d1520, 0xf5f8fa),
         "forest" => (0x0d150d, 0xf5f8f5),
         "lavender" => (0x150d18, 0xf8f5fa),
@@ -26,7 +26,7 @@ fn theme_bg(theme: &str, overlay: bool) -> Color {
         "rose" => (0x180d10, 0xfaf5f6),
         _ => (0x1a1612, 0xfaf8f5),
     };
-    let c = if overlay { dark } else { light };
+    let c = if dark { dark_bg } else { light_bg };
     Color((c >> 16) as u8, (c >> 8) as u8, c as u8, 255)
 }
 
@@ -37,6 +37,9 @@ fn builder<'a>(
     payload: Value,
 ) -> WebviewWindowBuilder<'a, tauri::Wry, AppHandle> {
     st.payloads.insert(label.into(), payload);
+    if crate::data::is_test_dir() {
+        eprintln!("{label} create {}", crate::mono());
+    }
     WebviewWindowBuilder::new(app, label, WebviewUrl::App(format!("{label}.html").into()))
         .initialization_script(SHIM)
         .visible(false)
@@ -74,23 +77,22 @@ pub fn overlay(app: &AppHandle, st: &mut St, label: &str, payload: Value) -> boo
     finish(app, label, built).is_some()
 }
 
-/// Ordinary window (Settings, Stats). Focuses the existing one if already open.
+/// Frameless panel window (Settings, Stats). Focuses the existing one if already open.
 pub fn panel(app: &AppHandle, st: &mut St, label: &str, title: &str, w: f64, h: f64, payload: Value) {
     if let Some(existing) = app.get_webview_window(label) {
         let _ = existing.set_focus();
         return;
     }
-    let bg = theme_bg(&st.settings.theme, false);
-    let built = builder(app, st, label, payload).title(title).inner_size(w, h).background_color(bg).build();
-    if let Some(window) = finish(app, label, built) {
-        // Electron sized the outer frame, Tauri sizes the content: shrink by the frame.
-        if let (Ok(outer), Ok(inner)) = (window.outer_size(), window.inner_size()) {
-            let _ = window.set_size(PhysicalSize::new(
-                inner.width.saturating_sub(outer.width - inner.width),
-                inner.height.saturating_sub(outer.height - inner.height),
-            ));
-        }
-    }
+    let bg = theme_bg(&st.settings.theme, st.settings.dark);
+    // No native title bar: the page draws its own header (drag + close) in the theme.
+    let built = builder(app, st, label, payload)
+        .title(title)
+        .inner_size(w, h)
+        .decorations(false)
+        .shadow(true)
+        .background_color(bg)
+        .build();
+    finish(app, label, built);
 }
 
 /// Click-through toast in the bottom-right corner; never takes focus from the game.
@@ -134,6 +136,9 @@ pub fn reveal(app: &AppHandle, st: &mut St, label: &str) {
         return;
     }
     let _ = window.show();
+    if crate::data::is_test_dir() {
+        eprintln!("{label} reveal {}", crate::mono());
+    }
     if is_overlay(label) || matches!(label, "settings" | "stats") {
         let _ = window.set_focus();
     }

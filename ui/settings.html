@@ -1,525 +1,304 @@
 <!DOCTYPE html>
-<html lang="en" class="theme-warm">
+<html lang="en" class="theme-warm dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>StandBuddy Settings</title>
 
   <link rel="stylesheet" href="themes.css">
+  <link rel="stylesheet" href="panel.css">
   <style>
-    :root {
-      --radius-sm: 8px;
-      --radius-md: 10px;
-      --radius-full: 100px;
-    }
-
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
-
-    body {
-      font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: var(--bg-base);
-      padding: 28px 24px;
-      user-select: none;
-      color: var(--text-primary);
-      line-height: 1.5;
-    }
-
-    h1 {
-      font-size: 17px;
-      font-weight: 500;
-      color: var(--text-primary);
-      margin-bottom: 28px;
-      text-align: center;
-      letter-spacing: -0.2px;
-    }
-
-    .setting-group {
-      margin-bottom: 28px;
-    }
-
-    label {
-      display: block;
-      font-size: 13px;
-      font-weight: 500;
-      color: var(--text-secondary);
-      margin-bottom: 12px;
-      letter-spacing: 0.1px;
-    }
-
-    .presets {
-      display: flex;
-      gap: 8px;
-      margin-bottom: 12px;
-      flex-wrap: wrap;
-    }
-
-    .preset-btn {
-      padding: 9px 14px;
-      font-family: 'DM Sans', sans-serif;
-      font-size: 13px;
-      font-weight: 400;
-      border: 1px solid var(--border-subtle);
-      border-radius: var(--radius-full);
-      background: var(--bg-card);
-      color: var(--text-secondary);
-      cursor: pointer;
-      transition: all 0.15s ease;
-      box-shadow: var(--shadow-sm);
-    }
-
-    .preset-btn:hover {
-      border-color: var(--accent);
-      color: var(--accent);
-      background: var(--accent-soft);
-    }
-
-    .preset-btn.active {
-      background: var(--accent);
-      border-color: var(--accent);
-      color: var(--text-on-accent);
-      box-shadow: var(--shadow-md);
-    }
-
-    .input-row {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .input-row span {
-      color: var(--text-muted);
-      font-size: 13px;
-    }
-
-    input[type="number"] {
-      width: 80px;
-      padding: 10px 12px;
-      font-family: 'DM Sans', sans-serif;
-      font-size: 14px;
-      border: 1px solid var(--border-subtle);
-      border-radius: var(--radius-sm);
-      background: var(--bg-input);
-      color: var(--text-primary);
-      text-align: center;
-      -moz-appearance: textfield;
-      transition: border-color 0.15s ease, box-shadow 0.15s ease;
-      box-shadow: var(--shadow-sm);
-    }
-
-    input[type="number"]::-webkit-outer-spin-button,
-    input[type="number"]::-webkit-inner-spin-button {
-      -webkit-appearance: none;
-      margin: 0;
-    }
-
-    input[type="number"]:focus {
-      outline: none;
-      border-color: var(--border-focus);
-      box-shadow: 0 0 0 3px var(--accent-soft);
-    }
-
-    input[type="number"].error {
-      border-color: var(--danger);
-    }
-
-    .checkbox-group {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      margin-top: 24px;
-      padding-top: 24px;
-      border-top: 1px solid var(--border-subtle);
-    }
-
-    .checkbox-group input[type="checkbox"] {
-      width: 18px;
-      height: 18px;
-      cursor: pointer;
-      accent-color: var(--accent);
-    }
-
-    .checkbox-group label {
-      margin: 0;
-      cursor: pointer;
-      font-weight: 400;
-      color: var(--text-primary);
-    }
-
-    .buttons {
-      display: flex;
-      gap: 12px;
-      margin-top: 32px;
-    }
-
-    button.action {
-      flex: 1;
-      padding: 13px 16px;
-      font-family: 'DM Sans', sans-serif;
-      font-size: 14px;
-      font-weight: 500;
-      border: none;
-      border-radius: var(--radius-md);
-      cursor: pointer;
-      transition: all 0.15s ease;
-      letter-spacing: 0.1px;
-    }
-
-    .btn-cancel {
-      background: var(--bg-card);
-      color: var(--text-secondary);
-      border: 1px solid var(--border-subtle);
-      box-shadow: var(--shadow-sm);
-    }
-
-    .btn-cancel:hover {
-      background: var(--bg-base);
-      border-color: rgba(0, 0, 0, 0.12);
-    }
-
-    .btn-save {
-      background: var(--accent);
-      color: var(--text-on-accent);
-      box-shadow: var(--shadow-md);
-    }
-
-    .btn-save:hover {
-      background: var(--accent-hover);
-    }
-
-    .sleep-mode-section {
-      margin-top: 24px;
-      padding-top: 24px;
-      border-top: 1px solid var(--border-subtle);
-    }
-
-    .sleep-mode-settings {
-      margin-top: 16px;
-      padding-left: 30px;
-      display: none;
-    }
-
-    .sleep-mode-settings.visible {
-      display: block;
-    }
-
-    .sleep-mode-settings label {
-      margin-bottom: 10px;
-    }
-
-    input[type="time"] {
-      padding: 10px 12px;
-      font-family: 'DM Sans', sans-serif;
-      font-size: 14px;
-      border: 1px solid var(--border-subtle);
-      border-radius: var(--radius-sm);
-      background: var(--bg-input);
-      color: var(--text-primary);
-      transition: border-color 0.15s ease, box-shadow 0.15s ease;
-      box-shadow: var(--shadow-sm);
-    }
-
-    input[type="time"]:focus {
-      outline: none;
-      border-color: var(--border-focus);
-      box-shadow: 0 0 0 3px var(--accent-soft);
-    }
-
-    /* Theme picker */
-    .theme-picker {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
-
-    .theme-btn {
-      width: 32px;
-      height: 32px;
-      border-radius: 50%;
-      border: 2px solid transparent;
-      cursor: pointer;
-      transition: all 0.15s ease;
-      position: relative;
-    }
-
-    .theme-btn:hover {
-      transform: scale(1.1);
-    }
-
-    .theme-btn.active {
-      border-color: var(--text-primary);
-      box-shadow: 0 0 0 2px var(--bg-base);
-    }
-
-    .theme-btn[data-theme="warm"] { background: linear-gradient(135deg, #c9a86c 50%, #1a1612 50%); }
-    .theme-btn[data-theme="ocean"] { background: linear-gradient(135deg, #5b9bd5 50%, #0d1520 50%); }
-    .theme-btn[data-theme="forest"] { background: linear-gradient(135deg, #6b9b6b 50%, #0d150d 50%); }
-    .theme-btn[data-theme="lavender"] { background: linear-gradient(135deg, #9b7bb8 50%, #150d18 50%); }
-    .theme-btn[data-theme="slate"] { background: linear-gradient(135deg, #6b7b8b 50%, #12151a 50%); }
-    .theme-btn[data-theme="rose"] { background: linear-gradient(135deg, #c98b9b 50%, #180d10 50%); }
-
-    .sleep-hint {
-      font-size: 12px;
-      color: var(--text-muted);
-      margin-left: 10px;
-    }
-
-    /* Game limiter */
-    .game-limiter-settings {
-      margin-top: 16px;
-      padding-left: 30px;
-      display: none;
-    }
-    .game-limiter-settings.visible { display: block; }
-    .game-limiter-settings label { margin-bottom: 10px; }
-
-    .game-list {
-      list-style: none;
-      margin: 4px 0 12px;
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-    }
-    .game-list:empty { display: none; }
-
-    .game-item {
+    /* A setting: label on the left, its control on the right. */
+    .row {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 10px;
-      padding: 8px 12px;
-      background: var(--bg-card);
-      border: 1px solid var(--border-subtle);
-      border-radius: var(--radius-sm);
+      gap: 16px;
+      min-height: 36px;
+    }
+    h2 + .row, h2 + .field { margin-top: 12px; }
+    .row + .row, .field + .field { margin-top: 14px; }
+    .row > label, .row-label { color: var(--text-secondary); }
+    label.row { cursor: pointer; }
+    label.row .hint { display: block; margin-top: 1px; }
+    label.row .row-label { color: var(--text-primary); }
+
+    /* Dark / Light and the value presets share one pill language. */
+    .seg, .presets { display: flex; gap: 6px; flex-wrap: wrap; }
+    .presets { margin-top: 10px; }
+    .seg button, .preset-btn {
+      height: 32px;
+      min-width: 46px;
+      padding: 0 13px;
+      border: 1px solid color-mix(in srgb, var(--text-primary) 20%, transparent);
+      border-radius: 100px;
+      background: transparent;
+      color: var(--text-secondary);
       font-size: 13px;
-      color: var(--text-primary);
-      box-shadow: var(--shadow-sm);
+      font-variant-numeric: tabular-nums;
+      cursor: pointer;
+      transition: background-color 0.15s, border-color 0.15s, color 0.15s;
+    }
+    .seg button:hover, .preset-btn:hover { border-color: var(--text-secondary); color: var(--text-primary); }
+    .seg button[aria-pressed="true"], .preset-btn.active {
+      background: var(--accent);
+      border-color: transparent;
+      color: var(--text-on-accent);
+      font-weight: 600;
     }
 
-    .game-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .theme-picker { display: flex; gap: 10px; }
+    .theme-btn {
+      width: 24px;
+      height: 24px;
+      border: 0;
+      border-radius: 50%;
+      cursor: pointer;
+      transition: box-shadow 0.15s;
+    }
+    .theme-btn:hover { box-shadow: 0 0 0 2px var(--bg-base), 0 0 0 3px var(--text-muted); }
+    .theme-btn[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--bg-base), 0 0 0 4px var(--text-primary); }
+    .theme-btn[data-theme="warm"] { background: #c9a86c; }
+    .theme-btn[data-theme="ocean"] { background: #5b9bd5; }
+    .theme-btn[data-theme="forest"] { background: #6b9b6b; }
+    .theme-btn[data-theme="lavender"] { background: #9b7bb8; }
+    .theme-btn[data-theme="slate"] { background: #6b7b8b; }
+    .theme-btn[data-theme="rose"] { background: #c98b9b; }
 
+    /* A value reads as a sentence: "Remind me every [35] minutes" — the field sits in the text. */
+    .say { display: flex; align-items: center; gap: 10px; min-height: 36px; }
+    .say span { color: var(--text-secondary); }
+    .say + .say, .field + .say, .say + .field { margin-top: 14px; }
+    input[type="number"], input[type="time"] {
+      height: 36px;
+      border: 1px solid color-mix(in srgb, var(--text-primary) 18%, transparent);
+      border-radius: 10px;
+      background: var(--bg-input);
+      font-size: 14px;
+      font-variant-numeric: tabular-nums;
+      caret-color: var(--accent-ink);
+      transition: border-color 0.15s;
+    }
+    input[type="number"] { width: 58px; text-align: center; }
+    input[type="time"] { padding: 0 10px; }
+    input[type="number"]::-webkit-outer-spin-button,
+    input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+    input[type="number"]:focus, input[type="time"]:focus { outline: none; border-color: var(--accent-ink); }
+    input[type="number"].error { border-color: var(--danger); }
+
+    .switch {
+      appearance: none;
+      flex: none;
+      width: 40px;
+      height: 24px;
+      border-radius: 12px;
+      background: color-mix(in srgb, var(--text-primary) 22%, transparent);
+      position: relative;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+    .switch::before {
+      content: '';
+      position: absolute;
+      top: 3px;
+      left: 3px;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: var(--bg-base);
+      transition: transform 0.2s var(--ease-out);
+    }
+    .switch:checked { background: var(--accent); }
+    .switch:checked::before { transform: translateX(16px); }
+
+    /* Options that only matter while the switch above them is on. */
+    .sub { display: none; margin-top: 14px; }
+    .sub.visible { display: block; }
+    .sub-title { margin-top: 18px; color: var(--text-secondary); }
+
+    .game-list { list-style: none; margin-top: 4px; }
+    .game-list:empty { display: none; }
+    .game-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 6px 0;
+      border-bottom: var(--hairline);
+    }
+    .game-item .icon-btn { margin-right: -8px; }
+    .game-item .icon-btn:hover { color: var(--danger); }
+    .game-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .game-pause {
       display: inline-flex;
       align-items: center;
-      gap: 5px;
-      font-size: 11px;
-      color: var(--text-muted);
-      cursor: pointer;
-      user-select: none;
-      white-space: nowrap;
-    }
-    .game-pause input { cursor: pointer; margin: 0; }
-
-    .game-remove {
-      border: none;
-      background: transparent;
-      color: var(--text-muted);
-      cursor: pointer;
-      font-size: 18px;
-      line-height: 1;
-      padding: 0 4px;
-      transition: color 0.15s ease;
-    }
-    .game-remove:hover { color: var(--danger); }
-
-    .game-empty {
-      font-size: 12px;
-      color: var(--text-muted);
-      margin: 4px 0 12px;
-    }
-
-    .btn-add-game {
-      padding: 9px 14px;
-      font-family: 'DM Sans', sans-serif;
-      font-size: 13px;
-      font-weight: 400;
-      border: 1px dashed var(--border-subtle);
-      border-radius: var(--radius-sm);
-      background: var(--bg-card);
+      gap: 6px;
+      font-size: 12.5px;
       color: var(--text-secondary);
+      white-space: nowrap;
       cursor: pointer;
-      transition: all 0.15s ease;
     }
-    .btn-add-game:hover {
-      border-color: var(--accent);
-      color: var(--accent);
-      background: var(--accent-soft);
-    }
+    input[type="checkbox"]:not(.switch) { width: 15px; height: 15px; accent-color: var(--accent); cursor: pointer; }
+    .game-empty { margin-top: 6px; }
+    .game-add-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
 
-    .game-add-row {
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
-
-    /* Steam scan panel */
     .steam-scan-panel {
       display: none;
       margin-top: 12px;
       padding: 12px;
-      background: var(--bg-card);
-      border: 1px solid var(--border-subtle);
-      border-radius: var(--radius-sm);
-      box-shadow: var(--shadow-sm);
+      border: var(--hairline);
+      border-radius: 12px;
     }
     .steam-scan-panel.visible { display: block; }
-
-    .steam-scan-status {
-      font-size: 12px;
-      color: var(--text-muted);
-      margin: 0 0 8px;
-    }
     .steam-scan-status:empty { display: none; }
-
     .steam-scan-list {
       list-style: none;
-      margin: 0 0 10px;
-      padding: 0;
+      margin: 8px -4px 0;
       max-height: 220px;
       overflow-y: auto;
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
     }
     .steam-scan-list:empty { display: none; }
-
     .steam-scan-item {
       display: flex;
       align-items: center;
       gap: 10px;
       padding: 7px 8px;
-      border-radius: var(--radius-sm);
-      cursor: pointer;
+      border-radius: 8px;
       font-size: 13px;
-      color: var(--text-primary);
+      cursor: pointer;
     }
     .steam-scan-item:hover { background: var(--accent-soft); }
-    .steam-scan-item input { margin: 0; cursor: pointer; }
-    .steam-scan-item.added { opacity: 0.5; cursor: default; }
+    .steam-scan-item.added { opacity: 0.55; cursor: default; }
     .steam-scan-item.added:hover { background: transparent; }
-
-    .steam-scan-name { flex: 1; }
-    .steam-scan-exe {
-      font-size: 11px;
-      color: var(--text-muted);
-    }
-
-    .steam-scan-actions {
-      display: none;
-      gap: 8px;
-      align-items: center;
-    }
+    .steam-scan-name { flex: 1; min-width: 0; }
+    .steam-scan-exe { font-size: 12px; color: var(--text-secondary); }
+    .steam-scan-actions { display: none; gap: 8px; margin-top: 10px; }
     .steam-scan-actions.visible { display: flex; }
-</style>
+
+    .foot { justify-content: flex-end; }
+    .foot .btn { min-width: 104px; }
+  </style>
 </head>
 <body>
-  <h1>StandBuddy Settings</h1>
+  <header class="bar" data-drag>
+    <h1>Settings</h1>
+    <button type="button" class="icon-btn" id="closeBtn" aria-label="Close without saving"><svg viewBox="0 0 14 14" aria-hidden="true"><path d="M2 2l10 10M12 2L2 12"/></svg></button>
+  </header>
 
-  <div class="setting-group">
-    <label>Theme</label>
-    <div class="theme-picker" id="themePicker">
-      <button class="theme-btn" data-theme="warm" title="Warm"></button>
-      <button class="theme-btn" data-theme="ocean" title="Ocean"></button>
-      <button class="theme-btn" data-theme="forest" title="Forest"></button>
-      <button class="theme-btn" data-theme="lavender" title="Lavender"></button>
-      <button class="theme-btn" data-theme="slate" title="Slate"></button>
-      <button class="theme-btn" data-theme="rose" title="Rose"></button>
-    </div>
-  </div>
-
-  <div class="setting-group">
-    <label>Reminder Interval</label>
-    <div class="presets" id="intervalPresets">
-      <button class="preset-btn" data-value="30">30</button>
-      <button class="preset-btn" data-value="35">35</button>
-      <button class="preset-btn" data-value="40">40</button>
-      <button class="preset-btn" data-value="45">45</button>
-      <button class="preset-btn" data-value="50">50</button>
-      <button class="preset-btn" data-value="60">60</button>
-    </div>
-    <div class="input-row">
-      <span>or custom:</span>
-      <input type="number" id="interval" min="1" value="30">
-      <span>minutes</span>
-    </div>
-  </div>
-
-  <div class="setting-group">
-    <label>Break Duration</label>
-    <div class="presets" id="breakPresets">
-      <button class="preset-btn" data-value="30">30</button>
-      <button class="preset-btn" data-value="60">60</button>
-      <button class="preset-btn" data-value="90">90</button>
-      <button class="preset-btn" data-value="120">120</button>
-    </div>
-    <div class="input-row">
-      <span>or custom:</span>
-      <input type="number" id="breakDuration" min="10" value="60">
-      <span>seconds</span>
-    </div>
-  </div>
-
-  <div class="sleep-mode-section">
-    <div class="checkbox-group" style="border-top: none; margin-top: 0; padding-top: 0;">
-      <input type="checkbox" id="sleepModeEnabled">
-      <label for="sleepModeEnabled">Sleep Mode</label>
-    </div>
-    <div class="sleep-mode-settings" id="sleepModeSettings">
-      <label>Bedtime</label>
-      <div class="input-row">
-        <input type="time" id="sleepModeBedtime" value="22:00">
-        <span class="sleep-hint">Computer will shut down at this time</span>
-      </div>
-    </div>
-  </div>
-
-  <div class="sleep-mode-section">
-    <div class="checkbox-group" style="border-top: none; margin-top: 0; padding-top: 0;">
-      <input type="checkbox" id="gameLimiterEnabled">
-      <label for="gameLimiterEnabled">Game Limiter</label>
-    </div>
-    <div class="game-limiter-settings" id="gameLimiterSettings">
-      <label>Daily limit</label>
-      <div class="input-row">
-        <input type="number" id="gameLimitHours" min="0.5" step="0.5" value="4">
-        <span>hours</span>
-      </div>
-
-      <label style="margin-top: 16px;">Games</label>
-      <ul class="game-list" id="gameList"></ul>
-      <p class="game-empty" id="gameEmpty">No games added yet.</p>
-      <div class="game-add-row">
-        <button type="button" class="btn-add-game" id="addGameBtn">+ Add game…</button>
-        <button type="button" class="btn-add-game" id="scanSteamBtn">Scan Steam games</button>
-      </div>
-
-      <div class="steam-scan-panel" id="steamScanPanel">
-        <p class="steam-scan-status" id="steamScanStatus"></p>
-        <ul class="steam-scan-list" id="steamScanList"></ul>
-        <div class="steam-scan-actions" id="steamScanActions">
-          <button type="button" class="btn-add-game" id="steamAddSelectedBtn">Add selected</button>
-          <button type="button" class="game-remove" id="steamScanCloseBtn" title="Close" style="font-size:13px;">Close</button>
+  <main class="scroll">
+    <section>
+      <h2>Appearance</h2>
+      <div class="row">
+        <span class="row-label">Mode</span>
+        <div class="seg" id="modePicker" role="group" aria-label="Mode">
+          <button type="button" data-mode="dark">Dark</button>
+          <button type="button" data-mode="light">Light</button>
         </div>
       </div>
+      <div class="row">
+        <span class="row-label">Color</span>
+        <div class="theme-picker" id="themePicker" role="group" aria-label="Color">
+          <button type="button" class="theme-btn" data-theme="warm" title="Warm" aria-label="Warm"></button>
+          <button type="button" class="theme-btn" data-theme="ocean" title="Ocean" aria-label="Ocean"></button>
+          <button type="button" class="theme-btn" data-theme="forest" title="Forest" aria-label="Forest"></button>
+          <button type="button" class="theme-btn" data-theme="lavender" title="Lavender" aria-label="Lavender"></button>
+          <button type="button" class="theme-btn" data-theme="slate" title="Slate" aria-label="Slate"></button>
+          <button type="button" class="theme-btn" data-theme="rose" title="Rose" aria-label="Rose"></button>
+        </div>
+      </div>
+    </section>
 
-      <p class="sleep-hint" style="margin-left: 0; margin-top: 8px; display: block;">
-        Games are closed once the daily limit is reached.
-      </p>
-    </div>
-  </div>
+    <section>
+      <h2>Breaks</h2>
+      <div class="field">
+        <div class="say">
+          <label for="interval">Remind me every</label>
+          <input type="number" id="interval" min="1" value="30">
+          <span>minutes</span>
+        </div>
+        <div class="presets" id="intervalPresets">
+          <button type="button" class="preset-btn" data-value="30">30</button>
+          <button type="button" class="preset-btn" data-value="35">35</button>
+          <button type="button" class="preset-btn" data-value="40">40</button>
+          <button type="button" class="preset-btn" data-value="45">45</button>
+          <button type="button" class="preset-btn" data-value="50">50</button>
+          <button type="button" class="preset-btn" data-value="60">60</button>
+        </div>
+      </div>
+      <div class="field">
+        <div class="say">
+          <label for="breakDuration">Break lasts</label>
+          <input type="number" id="breakDuration" min="10" value="60">
+          <span>seconds</span>
+        </div>
+        <div class="presets" id="breakPresets">
+          <button type="button" class="preset-btn" data-value="30">30</button>
+          <button type="button" class="preset-btn" data-value="60">60</button>
+          <button type="button" class="preset-btn" data-value="90">90</button>
+          <button type="button" class="preset-btn" data-value="120">120</button>
+        </div>
+      </div>
+      <label class="row field">
+        <span><span class="row-label">Emergency unlock</span><span class="hint">Hold 5 seconds to leave a break early</span></span>
+        <input type="checkbox" class="switch" id="emergencyUnlock">
+      </label>
+    </section>
 
-  <div class="checkbox-group">
-    <input type="checkbox" id="launchAtLogin">
-    <label for="launchAtLogin">Launch at startup</label>
-  </div>
+    <section>
+      <label class="row">
+        <span><h2>Sleep Mode</h2><span class="hint">Shuts the computer down at bedtime</span></span>
+        <input type="checkbox" class="switch" id="sleepModeEnabled">
+      </label>
+      <div class="sub" id="sleepModeSettings">
+        <div class="say">
+          <label for="sleepModeBedtime">Bedtime</label>
+          <input type="time" id="sleepModeBedtime" value="22:00">
+        </div>
+      </div>
+    </section>
 
-  <div class="buttons">
-    <button class="action btn-cancel" id="cancelBtn">Cancel</button>
-    <button class="action btn-save" id="saveBtn">Save</button>
-  </div>
+    <section>
+      <label class="row">
+        <span><h2>Game Limiter</h2><span class="hint">Closes games past the daily limit</span></span>
+        <input type="checkbox" class="switch" id="gameLimiterEnabled">
+      </label>
+      <div class="sub" id="gameLimiterSettings">
+        <div class="say">
+          <label for="gameLimitHours">Daily limit</label>
+          <input type="number" id="gameLimitHours" min="0.5" step="0.5" value="4">
+          <span>hours</span>
+        </div>
+
+        <p class="sub-title">Games</p>
+        <ul class="game-list" id="gameList"></ul>
+        <p class="hint game-empty" id="gameEmpty">No games added yet.</p>
+        <div class="game-add-row">
+          <button type="button" class="btn btn-small" id="addGameBtn">Add game…</button>
+          <button type="button" class="btn btn-small" id="scanSteamBtn">Scan Steam games</button>
+        </div>
+
+        <div class="steam-scan-panel" id="steamScanPanel">
+          <p class="hint steam-scan-status" id="steamScanStatus"></p>
+          <ul class="steam-scan-list" id="steamScanList"></ul>
+          <div class="steam-scan-actions" id="steamScanActions">
+            <button type="button" class="btn btn-small btn-primary" id="steamAddSelectedBtn">Add selected</button>
+            <button type="button" class="btn btn-small btn-quiet" id="steamScanCloseBtn">Close list</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <label class="row">
+        <h2>Launch at startup</h2>
+        <input type="checkbox" class="switch" id="launchAtLogin">
+      </label>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <button type="button" class="btn" id="cancelBtn">Cancel</button>
+    <button type="button" class="btn btn-primary" id="saveBtn">Save</button>
+  </footer>
 
   <script>
     const intervalInput = document.getElementById('interval');
@@ -529,10 +308,12 @@
     const breakPresets = document.getElementById('breakPresets');
 
     const launchAtLoginCheckbox = document.getElementById('launchAtLogin');
+    const emergencyUnlockCheckbox = document.getElementById('emergencyUnlock');
     const sleepModeCheckbox = document.getElementById('sleepModeEnabled');
     const sleepModeSettings = document.getElementById('sleepModeSettings');
     const sleepModeBedtime = document.getElementById('sleepModeBedtime');
     const themePicker = document.getElementById('themePicker');
+    const modePicker = document.getElementById('modePicker');
     const saveBtn = document.getElementById('saveBtn');
     const cancelBtn = document.getElementById('cancelBtn');
 
@@ -551,6 +332,7 @@
     const steamScanCloseBtn = document.getElementById('steamScanCloseBtn');
 
     let currentTheme = 'warm';
+    let dark = true;
     let gameList = [];
     let gameNames = {}; // exe (lowercase) -> friendly display name
     let gamePauseSet = new Set(); // exes (lowercase) that pause break reminders
@@ -583,13 +365,14 @@
           else gamePauseSet.delete(lower);
         });
         pauseLabel.appendChild(pauseCb);
-        pauseLabel.appendChild(document.createTextNode('Pause reminders'));
+        pauseLabel.appendChild(document.createTextNode('Pause breaks'));
 
         const btn = document.createElement('button');
         btn.type = 'button';
-        btn.className = 'game-remove';
-        btn.textContent = '×';
+        btn.className = 'icon-btn';
+        btn.innerHTML = '<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M2 2l10 10M12 2L2 12"/></svg>';
         btn.title = 'Remove';
+        btn.setAttribute('aria-label', 'Remove ' + displayName(name));
         btn.addEventListener('click', () => {
           const [removed] = gameList.splice(idx, 1);
           if (removed) {
@@ -679,13 +462,13 @@
       try {
         const games = await window.electronAPI.scanSteamGames();
         if (!games || !games.length) {
-          steamScanStatus.textContent = 'No Steam games found. Use "+ Add game…" to pick an .exe manually.';
+          steamScanStatus.textContent = 'No Steam games found. Use "Add game…" to pick an .exe manually.';
           return;
         }
         steamScanStatus.textContent = `Found ${games.length} game${games.length === 1 ? '' : 's'}. Tick the ones to limit.`;
         renderScanList(games);
       } catch (err) {
-        steamScanStatus.textContent = 'Could not scan Steam. Use "+ Add game…" instead.';
+        steamScanStatus.textContent = 'Could not scan Steam. Use "Add game…" instead.';
       } finally {
         scanSteamBtn.disabled = false;
       }
@@ -717,12 +500,22 @@
     gameLimitHoursInput.addEventListener('input', validateGameLimit);
 
     function applyTheme(theme) {
-      document.documentElement.className = `theme-${theme}`;
+      document.documentElement.className = `theme-${theme}${dark ? ' dark' : ''}`;
       currentTheme = theme;
       themePicker.querySelectorAll('.theme-btn').forEach(btn => {
-        btn.classList.toggle('active', btn.dataset.theme === theme);
+        btn.setAttribute('aria-pressed', btn.dataset.theme === theme);
+      });
+      modePicker.querySelectorAll('button').forEach(btn => {
+        btn.setAttribute('aria-pressed', (btn.dataset.mode === 'dark') === dark);
       });
     }
+
+    modePicker.querySelectorAll('button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        dark = btn.dataset.mode === 'dark';
+        applyTheme(currentTheme);
+      });
+    });
 
     themePicker.querySelectorAll('.theme-btn').forEach(btn => {
       btn.addEventListener('click', () => {
@@ -783,6 +576,7 @@
       intervalInput.value = settings.interval;
       breakInput.value = settings.breakDuration;
       launchAtLoginCheckbox.checked = settings.launchAtLogin || false;
+      emergencyUnlockCheckbox.checked = settings.emergencyUnlock !== false;
       sleepModeCheckbox.checked = settings.sleepModeEnabled || false;
       sleepModeBedtime.value = settings.sleepModeBedtime || '22:00';
       sleepModeSettings.classList.toggle('visible', sleepModeCheckbox.checked);
@@ -795,6 +589,7 @@
         ? settings.gamePauseList.map((e) => String(e).toLowerCase()) : []);
       gameLimiterSettings.classList.toggle('visible', gameLimiterCheckbox.checked);
       renderGameList();
+      dark = settings.dark !== false;
       applyTheme(settings.theme || 'warm');
       updatePresetButtons(intervalPresets, intervalInput);
       updatePresetButtons(breakPresets, breakInput);
@@ -821,9 +616,11 @@
         interval: Math.max(1, parseInt(intervalInput.value, 10)),
         breakDuration: Math.max(10, parseInt(breakInput.value, 10)),
         launchAtLogin: launchAtLoginCheckbox.checked,
+        emergencyUnlock: emergencyUnlockCheckbox.checked,
         sleepModeEnabled: sleepModeCheckbox.checked,
         sleepModeBedtime: sleepModeBedtime.value,
         theme: currentTheme,
+        dark: dark,
         gameLimiterEnabled: gameLimiterCheckbox.checked,
         gameLimitHours: Math.max(0.5, parseFloat(gameLimitHoursInput.value) || 4),
         gameList: gameList,
@@ -838,9 +635,8 @@
       });
     });
 
-    cancelBtn.addEventListener('click', () => {
-      window.electronAPI.cancelSettings();
-    });
+    cancelBtn.addEventListener('click', () => window.electronAPI.cancelSettings());
+    document.getElementById('closeBtn').addEventListener('click', () => window.electronAPI.cancelSettings());
   </script>
 </body>
 </html>

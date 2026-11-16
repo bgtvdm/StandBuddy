@@ -191,6 +191,7 @@ fn show_break(app: &AppHandle, st: &mut St) {
         "duration": st.settings.break_duration,
         "tip": st.next_tip(),
         "theme": st.settings.theme,
+        "emergencyUnlock": st.settings.emergency_unlock,
     });
     if win::overlay(app, st, "break", payload) {
         st.break_end = Some(mono() + (st.settings.break_duration * 1000.0) as i64);
@@ -254,7 +255,8 @@ fn on_menu(app: &AppHandle, id: &str) {
         "stats" => with(app, |st| {
             let mut payload = st.stats.for_window(st.settings.interval);
             payload["theme"] = json!(st.settings.theme);
-            win::panel(app, st, "stats", "StandBuddy Stats", 480.0, 640.0, payload);
+            payload["dark"] = json!(st.settings.dark);
+            win::panel(app, st, "stats", "StandBuddy Stats", 480.0, 720.0, payload);
         }),
         "settings" => with(app, |st| {
             let payload = serde_json::to_value(&st.settings).unwrap_or_default();
@@ -314,10 +316,17 @@ fn close_self(app: AppHandle, window: WebviewWindow) {
     }
 }
 
+// Frameless Settings/Stats windows drag by their own header.
+#[tauri::command]
+fn drag_self(window: WebviewWindow) {
+    let _ = window.start_dragging();
+}
+
 #[tauri::command(async)]
 fn break_skip(app: AppHandle) {
     with(&app, |st| {
-        if st.break_end.is_some() {
+        // Refused here too, not only hidden in the page.
+        if st.break_end.is_some() && st.settings.emergency_unlock {
             st.record_emergency_skip();
             close_break(&app, st, false);
         }
@@ -357,6 +366,8 @@ fn settings_save(app: AppHandle, new_settings: Value) {
         s.sleep_mode_enabled = flag("sleepModeEnabled");
         s.sleep_mode_bedtime = text("sleepModeBedtime").unwrap_or("22:00").into();
         s.theme = text("theme").unwrap_or("warm").into();
+        s.dark = flag("dark");
+        s.emergency_unlock = flag("emergencyUnlock");
         s.game_limiter_enabled = flag("gameLimiterEnabled");
         s.game_limit_hours = Some(num("gameLimitHours", 4.0)).filter(|h| *h > 0.0).unwrap_or(4.0);
         s.game_list = list("gameList");
@@ -450,6 +461,29 @@ fn is_only_instance() -> bool {
     }
 }
 
+/// Test mode only: `STANDBUDDY_OPEN=settings,break,…` opens windows without the tray,
+/// so every window can be smoke-tested and timed (see the timing lines in win.rs).
+fn open_for_test(app: &AppHandle) {
+    let Some(list) = std::env::var("STANDBUDDY_OPEN").ok().filter(|_| data::is_test_dir()) else { return };
+    for label in list.split(',') {
+        match label {
+            "settings" | "stats" => on_menu(app, label),
+            "break" => with(app, |st| show_break(app, st)),
+            _ => with(app, |st| {
+                let payload = json!({
+                    "theme": st.settings.theme, "minutesLeft": 5, "snoozesLeft": 3,
+                    "limitHours": st.settings.game_limit_hours,
+                });
+                if label == "game-warning" {
+                    win::toast(app, st, label, payload);
+                } else if win::is_overlay(label) {
+                    win::overlay(app, st, label, payload);
+                }
+            }),
+        }
+    }
+}
+
 fn tick(app: &AppHandle, st: &mut St) {
     let now = mono();
     if st.break_end.is_some_and(|at| now >= at) {
@@ -474,6 +508,7 @@ fn main() {
             get_payload,
             reveal,
             close_self,
+            drag_self,
             break_skip,
             stats_reset,
             settings_save,
@@ -511,6 +546,8 @@ fn main() {
                 st.settings.launch_at_login
             });
             thread::spawn(move || sync_autostart(launch_at_login));
+            let opener = app.clone();
+            thread::spawn(move || open_for_test(&opener));
             thread::spawn(move || loop {
                 thread::sleep(Duration::from_secs(1));
                 with(&app, |st| tick(&app, st));

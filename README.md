@@ -15,7 +15,7 @@
 
 <img src="docs/images/break.webp" alt="Full-screen break overlay: Time to Stand!, a 0:59 countdown, an Emergency Unlock button and a movement tip">
 
-When a break is due, StandBuddy covers the whole screen until the countdown ends. No snooze button, no "remind me later". The only way out early is holding Emergency Unlock for five seconds, and that gets counted.
+When a break is due, StandBuddy covers the whole screen until the countdown ends. No snooze button, no "remind me later". The only way out early is holding Emergency Unlock for five seconds, and that gets counted. You can switch that exit off in Settings.
 
 - **Breaks that happen.** Every 30 minutes by default, 60 seconds of standing, a short movement tip each time.
 - **A bedtime that holds.** Warnings at 30, 15 and 5 minutes, then a shutdown prompt with three snoozes at most.
@@ -25,13 +25,13 @@ When a break is due, StandBuddy covers the whole screen until the countdown ends
 ### Stats: streaks, the last 7 days and 16 achievements
 
 <p align="center">
-  <img src="docs/images/stats.webp" width="420" alt="Stats window: 9 breaks completed today, a 12-day streak and bars for the last 7 days">
+  <img src="docs/images/stats.webp" width="420" alt="Stats window: a 12-day streak, 9 breaks completed today, bars for the last 7 days and unlocked achievements">
 </p>
 
-### Settings: interval, break length, sleep mode, games
+### Settings: look, interval, break length, sleep mode, games
 
 <p align="center">
-  <img src="docs/images/settings.webp" width="380" alt="Settings window: six color themes, reminder interval, break duration and sleep mode with a 23:00 bedtime">
+  <img src="docs/images/settings.webp" width="380" alt="Settings window: dark and light mode, six colors, reminder interval, break length, the emergency unlock switch and sleep mode with a 23:00 bedtime">
 </p>
 
 ### Game limit: the budget is spent
@@ -54,7 +54,7 @@ Coming from 1.x (the zip version)? Quit it from the tray, run the installer, the
 - **Breaks.** A timer runs while you work. When it fires, a full-screen overlay stays on top of every window until the break ends. Right-click the tray icon to pause reminders.
 - **Sleep mode.** Set a bedtime. StandBuddy warns you ahead of it, then asks to shut the computer down. You can snooze up to three times.
 - **Game limiter.** Add games with a file picker or pick them from your Steam library. Play time adds up across all of them. Corner warnings show at 30 and 5 minutes left, and at zero the game process is closed, anti-cheat titles included. You can also pause break reminders while a game runs. The only way around the limit is turning it off in Settings.
-- **Themes.** Six palettes: Warm, Ocean, Forest, Lavender, Slate, Rose.
+- **Themes.** Six colors (Warm, Ocean, Forest, Lavender, Slate, Rose), each in dark and light.
 
 ## License
 

@@ -37,6 +37,8 @@ pub struct Settings {
     pub sleep_mode_enabled: bool,
     pub sleep_mode_bedtime: String,
     pub theme: String,
+    pub emergency_unlock: bool, // the break overlay offers the 5-second-hold exit
+    pub dark: bool, // Settings/Stats windows: dark or light variant of the theme
     pub game_limiter_enabled: bool,
     pub game_limit_hours: f64,
     pub game_list: Vec<String>,
@@ -59,6 +61,8 @@ impl Default for Settings {
             sleep_mode_enabled: false,
             sleep_mode_bedtime: "22:00".into(),
             theme: "warm".into(),
+            emergency_unlock: true,
+            dark: true,
             game_limiter_enabled: false,
             game_limit_hours: 4.0,
             game_list: vec![],
