@@ -50,13 +50,21 @@ fn builder<'a>(
 
 fn finish(app: &AppHandle, label: &str, built: tauri::Result<WebviewWindow>) -> Option<WebviewWindow> {
     let window = built.map_err(|err| eprintln!("window {label} failed: {err}")).ok()?;
-    // Safety net: an overlay that never appears is worse than one that flashes.
+    safety_net(app, label);
+    Some(window)
+}
+
+// An overlay that never appears is worse than one that flashes.
+fn safety_net(app: &AppHandle, label: &str) {
     let (app, label) = (app.clone(), label.to_string());
     thread::spawn(move || {
         thread::sleep(Duration::from_millis(1500));
         crate::with(&app, |st| reveal(&app, st, &label));
     });
-    Some(window)
+}
+
+pub fn is_panel(label: &str) -> bool {
+    matches!(label, "settings" | "stats")
 }
 
 /// Fullscreen always-on-top overlay. Returns false if it already exists or failed.
@@ -77,12 +85,49 @@ pub fn overlay(app: &AppHandle, st: &mut St, label: &str, payload: Value) -> boo
     finish(app, label, built).is_some()
 }
 
-/// Frameless panel window (Settings, Stats). Focuses the existing one if already open.
+/// Frameless panel window (Settings, Stats). Panels are created hidden when the cursor
+/// reaches the tray icon (`prewarm`), so the click only re-renders fresh data and shows
+/// the window. Focuses the window if it is already showing.
 pub fn panel(app: &AppHandle, st: &mut St, label: &str, title: &str, w: f64, h: f64, payload: Value) {
+    st.wanted.insert(label.into());
+    if crate::data::is_test_dir() {
+        eprintln!("{label} open {}", crate::mono());
+    }
     if let Some(existing) = app.get_webview_window(label) {
-        let _ = existing.set_focus();
+        if existing.is_visible().unwrap_or(false) {
+            let _ = existing.set_focus();
+            return;
+        }
+        st.payloads.insert(label.into(), payload);
+        let _ = existing.set_background_color(Some(theme_bg(&st.settings.theme, st.settings.dark)));
+        // If the page hasn't loaded yet, its own first load reads this payload and reveals.
+        let _ = existing.eval("window.__sbRefresh && window.__sbRefresh()");
+        safety_net(app, label);
         return;
     }
+    create_panel(app, st, label, title, w, h, payload);
+}
+
+/// Create a panel hidden so the first `panel` call is instant. No-op if it exists.
+pub fn prewarm(app: &AppHandle, st: &mut St, label: &str, title: &str, w: f64, h: f64, payload: Value) {
+    if app.get_webview_window(label).is_none() {
+        create_panel(app, st, label, title, w, h, payload);
+    }
+}
+
+/// Close a panel: hide it and reload the page in the background, so a reopen within
+/// `WARM_MS` is instant and starts clean (no half-edited form or scroll position).
+/// After that the tick destroys it.
+pub fn hide_panel(app: &AppHandle, st: &mut St, label: &str) {
+    st.wanted.remove(label);
+    st.warm_until = crate::mono() + crate::WARM_MS;
+    if let Some(window) = app.get_webview_window(label) {
+        let _ = window.hide();
+        let _ = window.eval("location.reload()");
+    }
+}
+
+fn create_panel(app: &AppHandle, st: &mut St, label: &str, title: &str, w: f64, h: f64, payload: Value) {
     let bg = theme_bg(&st.settings.theme, st.settings.dark);
     // No native title bar: the page draws its own header (drag + close) in the theme.
     let built = builder(app, st, label, payload)
@@ -135,11 +180,15 @@ pub fn reveal(app: &AppHandle, st: &mut St, label: &str) {
     if window.is_visible().unwrap_or(true) {
         return;
     }
+    // A prewarmed or reloading panel nobody asked to open stays hidden.
+    if is_panel(label) && !st.wanted.contains(label) {
+        return;
+    }
     let _ = window.show();
     if crate::data::is_test_dir() {
         eprintln!("{label} reveal {}", crate::mono());
     }
-    if is_overlay(label) || matches!(label, "settings" | "stats") {
+    if is_overlay(label) || is_panel(label) {
         let _ = window.set_focus();
     }
     if label == "break" && st.break_started.is_none() {

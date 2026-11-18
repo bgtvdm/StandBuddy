@@ -231,45 +231,66 @@ fn succeeded(command: &mut std::process::Command) -> bool {
     command.output().is_ok_and(|out| out.status.success())
 }
 
+/// Base64 of the kill script as the task runs it (`-EncodedCommand`).
+fn encoded_script() -> String {
+    let dir = data::data_dir().display().to_string().replace('\'', "''");
+    base64(&utf16le(&KILL_SCRIPT.replace("{DIR}", &dir)))
+}
+
+/// The registered kill task exists and carries exactly this script.
+fn task_is_ours(encoded: &str) -> bool {
+    cmd("schtasks").args(["/query", "/tn", KILL_TASK, "/xml"]).output().is_ok_and(|out| {
+        let ascii: Vec<u8> = out.stdout.into_iter().filter(|b| *b != 0).collect();
+        String::from_utf8_lossy(&ascii).contains(encoded)
+    })
+}
+
+/// Run a PowerShell script elevated (one UAC prompt) and wait for it. The script travels
+/// inside the elevated process's own command line, never through a file.
+fn run_elevated(script: &str) {
+    let ps = format!(
+        "try {{ $p = Start-Process -FilePath powershell.exe -ArgumentList '-NoProfile','-NonInteractive','-WindowStyle','Hidden','-ExecutionPolicy','Bypass','-EncodedCommand','{}' -Verb RunAs -Wait -WindowStyle Hidden -PassThru; exit $p.ExitCode }} catch {{ exit 1 }}",
+        base64(&utf16le(script))
+    );
+    let _ = cmd("powershell.exe").args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", &ps]).status();
+}
+
+/// The elevated script that registers the task. The definition is a literal inside the
+/// script: a definition file in the user-writable data folder could be swapped while the
+/// UAC prompt is up, and the elevated side would register whatever it then read.
+fn register_script(encoded: &str) -> String {
+    let args = format!(
+        "-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -EncodedCommand {encoded}"
+    );
+    let xml = KILL_TASK_XML.replace("{ARGS}", &args);
+    format!("$x = @'\n{xml}\n'@\nRegister-ScheduledTask -TaskName '{KILL_TASK}' -Xml $x -Force | Out-Null")
+}
+
 /// Register the kill task if it's missing. Runs off-thread: it waits on a UAC prompt.
 pub fn ensure_kill_task() {
     if data::is_test_dir() {
         return;
     }
     thread::spawn(|| {
-        let dir = data::data_dir();
-        let script = KILL_SCRIPT.replace("{DIR}", &dir.display().to_string().replace('\'', "''"));
-        let encoded = base64(&utf16le(&script));
+        // Left behind by builds that registered the task from a file.
+        let _ = fs::remove_file(data::data_dir().join("kill-task.xml"));
+        let encoded = encoded_script();
         // Registered and carrying exactly this script? Anything else is re-registered —
         // including the Electron-era task, which ran a script file from the data folder.
-        let current = || {
-            cmd("schtasks").args(["/query", "/tn", KILL_TASK, "/xml"]).output().is_ok_and(|out| {
-                let ascii: Vec<u8> = out.stdout.into_iter().filter(|b| *b != 0).collect();
-                String::from_utf8_lossy(&ascii).contains(&encoded)
-            })
-        };
-        if current() {
+        if task_is_ours(&encoded) {
             return;
         }
-        let args = format!(
-            "-NoProfile -NonInteractive -WindowStyle Hidden -ExecutionPolicy Bypass -EncodedCommand {encoded}"
-        );
-        // schtasks expects UTF-16LE XML with a BOM.
-        let xml = dir.join("kill-task.xml");
-        let task = format!("{}{}", '\u{FEFF}', KILL_TASK_XML.replace("{ARGS}", &args));
-        if fs::write(&xml, utf16le(&task)).is_err() {
-            return eprintln!("game-limiter: failed to write the kill task definition");
+        run_elevated(&register_script(&encoded));
+        if task_is_ours(&encoded) {
+            return;
         }
-        let create = format!(r#"/create /tn {KILL_TASK} /xml "{}" /f"#, xml.display()).replace('\'', "''");
-        let ps = format!(
-            "try {{ $p = Start-Process -FilePath schtasks.exe -ArgumentList '{create}' -Verb RunAs -Wait -WindowStyle Hidden -PassThru; exit $p.ExitCode }} catch {{ exit 1 }}"
-        );
-        let _ = cmd("powershell.exe")
-            .args(["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", &ps])
-            .status();
-        // Also catches a definition file swapped while the UAC prompt was up.
-        if !current() {
-            eprintln!("game-limiter: kill task was not registered as written (UAC declined?)");
+        // UAC declined (no task), or a task that is not ours: never keep the latter.
+        let exists = cmd("schtasks").args(["/query", "/tn", KILL_TASK]).output().is_ok_and(|o| o.status.success());
+        if exists {
+            eprintln!("game-limiter: kill task does not match; removing it");
+            run_elevated(&format!("Unregister-ScheduledTask -TaskName '{KILL_TASK}' -Confirm:$false"));
+        } else {
+            eprintln!("game-limiter: kill task was not registered (UAC declined?)");
         }
     });
 }
@@ -277,9 +298,10 @@ pub fn ensure_kill_task() {
 fn kill(entry: &str) {
     let Some(image) = image_name(entry) else { return };
     thread::spawn(move || {
-        // Hand the target to the elevated task; fall back to a direct (likely
-        // refused for protected games, but logged) taskkill if that isn't possible.
-        let handed_off = fs::write(data::data_dir().join("kill-target.txt"), &image).is_ok()
+        // Hand the target to the elevated task — only if it is ours; otherwise fall back
+        // to a direct (likely refused for protected games, but logged) taskkill.
+        let handed_off = task_is_ours(&encoded_script())
+            && fs::write(data::data_dir().join("kill-target.txt"), &image).is_ok()
             && succeeded(cmd("schtasks").args(["/run", "/tn", KILL_TASK]));
         if !handed_off {
             match cmd("taskkill").args(["/f", "/im", &image]).output() {
@@ -476,6 +498,22 @@ mod tests {
         let script = KILL_SCRIPT.replace("{DIR}", r"C:\standbuddy-no-such-folder");
         let encoded = base64(&utf16le(&script));
         assert!(succeeded(cmd("powershell.exe").args(["-NoProfile", "-NonInteractive", "-EncodedCommand", &encoded])));
+    }
+
+    #[test]
+    fn register_script_carries_well_formed_xml_and_fits_a_command_line() {
+        let encoded = encoded_script();
+        let script = register_script(&encoded);
+        assert!(script.contains(&encoded));
+        // Same script, but parse the definition instead of registering it.
+        let check = script.replace(
+            &format!("Register-ScheduledTask -TaskName '{KILL_TASK}' -Xml $x -Force | Out-Null"),
+            "$null = [xml]$x",
+        );
+        assert_ne!(check, script);
+        assert!(succeeded(cmd("powershell.exe").args(["-NoProfile", "-NonInteractive", "-EncodedCommand", &base64(&utf16le(&check))])));
+        // The outer command that starts the elevated PowerShell stays under the 32767-char limit.
+        assert!(base64(&utf16le(&script)).len() + 400 < 32_767);
     }
 
     #[test]

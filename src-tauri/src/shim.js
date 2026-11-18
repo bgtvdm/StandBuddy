@@ -7,11 +7,14 @@
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', resolve);
     else resolve();
   });
+  // Settings/Stats stay loaded while hidden; main calls __sbRefresh to re-render
+  // them with fresh data right before showing (win.rs `panel`).
   const load = (cb) => {
-    Promise.all([inv('get_payload'), domReady]).then(([data]) => {
+    window.__sbRefresh = () => Promise.all([inv('get_payload'), domReady]).then(([data]) => {
       cb(data);
       inv('reveal');
     });
+    window.__sbRefresh();
   };
   let onReset = null;
 

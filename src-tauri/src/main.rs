@@ -16,12 +16,12 @@ mod win;
 use data::{Settings, Stats};
 use serde_json::{json, Map, Value};
 use std::{
-    collections::HashMap, os::windows::process::CommandExt, process::Command, sync::Mutex, thread,
+    collections::{HashMap, HashSet}, os::windows::process::CommandExt, process::Command, sync::Mutex, thread,
     time::Duration,
 };
 use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem},
-    tray::TrayIconBuilder,
+    tray::{TrayIconBuilder, TrayIconEvent},
     AppHandle, Manager, RunEvent, WebviewWindow, WindowEvent, Wry,
 };
 use windows_sys::Win32::{
@@ -42,6 +42,8 @@ pub struct St {
     pub snoozes: u32,
     pub game: game::Game,
     pub payloads: HashMap<String, Value>, // what each open window loads, by label
+    pub wanted: HashSet<String>,          // panels the user has open (shown when painted)
+    pub warm_until: i64,                  // mono ms; hidden panels are destroyed after this
     tooltip: String,
 }
 
@@ -97,6 +99,8 @@ impl St {
             snoozes: 3,
             game: game::Game::default(),
             payloads: HashMap::new(),
+            wanted: HashSet::new(),
+            warm_until: 0,
             tooltip: String::new(),
         }
     }
@@ -252,21 +256,42 @@ fn on_menu(app: &AppHandle, id: &str) {
             if st.paused { resume_timer(st) } else { pause_timer(st) }
             update_menu(app, st);
         }),
-        "stats" => with(app, |st| {
-            let mut payload = st.stats.for_window(st.settings.interval);
-            payload["theme"] = json!(st.settings.theme);
-            payload["dark"] = json!(st.settings.dark);
-            win::panel(app, st, "stats", "StandBuddy Stats", 480.0, 720.0, payload);
-        }),
-        "settings" => with(app, |st| {
-            let payload = serde_json::to_value(&st.settings).unwrap_or_default();
-            win::panel(app, st, "settings", "StandBuddy Settings", 380.0, 760.0, payload);
-        }),
+        "stats" | "settings" => with(app, |st| open_panel(app, st, id, false)),
         "quit" => {
             with(app, |st| game::flush(st, true));
             app.exit(0);
         }
         _ => {}
+    }
+}
+
+/// How long hidden Settings/Stats stay loaded after the last tray hover or close.
+pub const WARM_MS: i64 = 30_000;
+
+/// The cursor reached the tray icon: load both panels hidden now, so a Settings or
+/// Stats click a moment later only shows them. Idle, nothing stays loaded (see tick).
+fn warm_up(app: &AppHandle) {
+    with(app, |st| {
+        st.warm_until = mono() + WARM_MS;
+        open_panel(app, st, "settings", true);
+        open_panel(app, st, "stats", true);
+    });
+}
+
+/// Open Settings or Stats with fresh data; `prewarm` only creates it hidden.
+fn open_panel(app: &AppHandle, st: &mut St, label: &str, prewarm: bool) {
+    let (title, w, h, payload) = if label == "stats" {
+        let mut payload = st.stats.for_window(st.settings.interval);
+        payload["theme"] = json!(st.settings.theme);
+        payload["dark"] = json!(st.settings.dark);
+        ("StandBuddy Stats", 480.0, 720.0, payload)
+    } else {
+        ("StandBuddy Settings", 380.0, 760.0, serde_json::to_value(&st.settings).unwrap_or_default())
+    };
+    if prewarm {
+        win::prewarm(app, st, label, title, w, h, payload);
+    } else {
+        win::panel(app, st, label, title, w, h, payload);
     }
 }
 
@@ -289,6 +314,12 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
         .tooltip("StandBuddy")
         .menu(&menu)
         .show_menu_on_left_click(false)
+        .on_tray_icon_event(|tray, event| {
+            if matches!(event, TrayIconEvent::Enter { .. } | TrayIconEvent::Click { .. }) {
+                let app = tray.app_handle().clone();
+                thread::spawn(move || warm_up(&app));
+            }
+        })
         .on_menu_event(|app, event| {
             let (app, id) = (app.clone(), event.id().0.clone());
             thread::spawn(move || on_menu(&app, &id));
@@ -311,7 +342,9 @@ fn reveal(app: AppHandle, window: WebviewWindow) {
 
 #[tauri::command(async)]
 fn close_self(app: AppHandle, window: WebviewWindow) {
-    if !win::is_overlay(window.label()) {
+    if win::is_panel(window.label()) {
+        with(&app, |st| win::hide_panel(&app, st, window.label()));
+    } else if !win::is_overlay(window.label()) {
         with(&app, |st| win::destroy(&app, st, window.label()));
     }
 }
@@ -386,7 +419,7 @@ fn settings_save(app: AppHandle, new_settings: Value) {
         sleep::schedule(st);
         game::stop(&app, st);
         game::start(&app, st);
-        win::destroy(&app, st, "settings");
+        win::hide_panel(&app, st, "settings");
         (st.settings.launch_at_login, st.settings.game_limiter_enabled)
     });
     sync_autostart(launch_at_login);
@@ -468,6 +501,14 @@ fn open_for_test(app: &AppHandle) {
     for label in list.split(',') {
         match label {
             "settings" | "stats" => on_menu(app, label),
+            // `warm` (tray hover), `wait[:ms]` (default 2 s) and `hide-<panel>` time
+            // the warm path and the cool-down.
+            "warm" => warm_up(app),
+            _ if label.starts_with("wait") => {
+                let ms = label.strip_prefix("wait:").and_then(|v| v.parse().ok()).unwrap_or(2000);
+                thread::sleep(Duration::from_millis(ms));
+            }
+            "hide-settings" | "hide-stats" => with(app, |st| win::hide_panel(app, st, &label[5..])),
             "break" => with(app, |st| show_break(app, st)),
             _ => with(app, |st| {
                 let payload = json!({
@@ -491,6 +532,11 @@ fn tick(app: &AppHandle, st: &mut St) {
     }
     if st.next_break.is_some_and(|at| now >= at) {
         show_break(app, st);
+    }
+    // Cool-down: no panel open and no recent tray hover — free the WebView entirely.
+    if now >= st.warm_until && st.wanted.is_empty() {
+        win::destroy(app, st, "settings");
+        win::destroy(app, st, "stats");
     }
     sleep::tick(app, st);
     game::tick(app, st);
@@ -519,6 +565,16 @@ fn main() {
             steam_list_games
         ])
         .on_window_event(|window, event| {
+            // Alt+F4 on Settings/Stats hides it (kept warm) instead of destroying it.
+            // Off the main thread: it must never wait on the state mutex.
+            if win::is_panel(window.label()) {
+                if let WindowEvent::CloseRequested { api, .. } = event {
+                    api.prevent_close();
+                    let (app, label) = (window.app_handle().clone(), window.label().to_string());
+                    thread::spawn(move || with(&app, |st| win::hide_panel(&app, st, &label)));
+                }
+                return;
+            }
             if !win::is_overlay(window.label()) {
                 return;
             }
