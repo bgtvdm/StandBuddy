@@ -41,6 +41,29 @@ When a break is due, StandBuddy covers the whole screen until the countdown ends
 
 ## Install
 
+### With an AI agent
+
+Paste this into Claude Code, Codex or any agent that can run PowerShell on your PC:
+
+```text
+Install StandBuddy (https://github.com/bgtvdm/StandBuddy) on this Windows PC.
+1. Get the latest release from https://api.github.com/repos/bgtvdm/StandBuddy/releases/latest
+   and download the asset named StandBuddy_<version>_x64-setup.exe to a temp folder.
+2. Run it silently, no admin rights needed: Start-Process -Wait <setup.exe> -ArgumentList '/S'
+   It installs per user into %LOCALAPPDATA%\StandBuddy. For another folder add '/D=<dir>' as the
+   last argument, unquoted. If an older StandBuddy is running, the installer closes it and
+   upgrades in place; settings and stats in %APPDATA%\standbuddy are kept.
+3. A silent install does not start the app, so start it: explorer.exe "<install dir>\standbuddy.exe"
+4. Check that a standbuddy.exe process is running and tell me to look for the icon in the tray
+   (it may sit under the ^ overflow arrow). Then tell me to right-click it → Settings to set the
+   interval and turn on Launch at startup.
+To update later, repeat steps 1–3 with the newer release.
+```
+
+If Windows SmartScreen stops the installer, the agent can't click past it; it will ask you to click **More info** → **Run anyway**.
+
+### By hand
+
 1. Download `StandBuddy_<version>_x64-setup.exe` from the [latest release](https://github.com/bgtvdm/StandBuddy/releases/latest).
 2. Run it. If SmartScreen shows "Unknown publisher", click **More info** → **Run anyway** (the app isn't code-signed).
 3. The installer needs no admin rights. It adds a Start menu shortcut and starts StandBuddy in the tray.
