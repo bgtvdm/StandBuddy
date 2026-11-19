@@ -13,7 +13,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-3b3431?style=flat-square" alt="MIT license"></a>
 </p>
 
-<img src="docs/images/break.webp" alt="Full-screen break overlay: Time to Stand!, a 0:59 countdown, an Emergency Unlock button and a movement tip">
+<img src="docs/images/break.webp" alt="Full-screen break overlay in the Ocean theme: Time to Stand!, a 0:59 countdown, an Emergency Unlock button and a shoulder-roll tip">
 
 When a break is due, StandBuddy covers the whole screen until the countdown ends. No snooze button, no "remind me later". The only way out early is holding Emergency Unlock for five seconds, and that gets counted. You can switch that exit off in Settings.
 
@@ -21,22 +21,23 @@ When a break is due, StandBuddy covers the whole screen until the countdown ends
 - **A bedtime that holds.** Warnings at 30, 15 and 5 minutes, then a shutdown prompt with three snoozes at most.
 - **A gaming budget.** One daily limit shared across all your games. When it runs out, the game closes.
 - **Private.** No account, no cloud. Stats live in a JSON file on your machine.
+- **Light.** About 11 MB of memory and 0% CPU while it waits in the tray. One process, no browser engine.
 
 ### Stats: streaks, the last 7 days and 16 achievements
 
 <p align="center">
-  <img src="docs/images/stats.webp" width="420" alt="Stats window: a 12-day streak, 9 breaks completed today, bars for the last 7 days and unlocked achievements">
+  <img src="docs/images/stats.webp" width="420" alt="Stats window, dark Ocean theme: a 12-day streak, 9 breaks completed today, bars for the last 7 days and 7 of 16 achievements unlocked">
 </p>
 
-### Settings: look, interval, break length, sleep mode, games
+### Settings: look, interval, break length, sleep mode, games (here in light mode)
 
 <p align="center">
-  <img src="docs/images/settings.webp" width="380" alt="Settings window: dark and light mode, six colors, reminder interval, break length, the emergency unlock switch and sleep mode with a 23:00 bedtime">
+  <img src="docs/images/settings.webp" width="380" alt="Settings window, light Ocean theme: dark and light mode, six colors, reminder interval, break length, the emergency unlock switch, sleep mode with a 23:00 bedtime and the game limiter">
 </p>
 
 ### Game limit: the budget is spent
 
-<img src="docs/images/game-blocked.webp" alt="Full-screen notice: Game Limit Reached, you've reached your 3h daily game limit, closing in 4 seconds">
+<img src="docs/images/game-blocked.webp" alt="Full-screen notice in the Ocean theme: Game Limit Reached, you've reached your 3h daily game limit, closing in 4 seconds">
 
 ## Install
 
@@ -58,7 +59,17 @@ Coming from 1.x (the zip version)? Quit it from the tray, run the installer, the
 
 ## Built with
 
-Rust and [Slint](https://slint.dev) with its software renderer. No browser engine, no WebView2: idle in the tray it uses about 11 MB of memory and no CPU, and windows appear in under 50 ms.
+Rust and [Slint](https://slint.dev) with its software renderer. No browser engine, no WebView2, no Electron.
+
+Measured on v3.0.2 (release build, Windows 11, private bytes, CPU as % of one core):
+
+| State | Memory | CPU |
+|---|---|---|
+| Idle in the tray | 11 MB | 0% |
+| Stats and Settings open | 16 MB | 0% |
+| Break overlay up, two monitors (3440×1440 + 1440×2560) | 46 MB | a few % for the first seconds, then ~0% |
+
+Stats and Settings appear about 20 ms after the click. The installer is 3.8 MB and the app is a single 8.3 MB exe. For comparison, the 2.x line ran on WebView2 and used 140–300 MB for each open window.
 
 To build the installer: Rust (MSVC), the Windows SDK and [NSIS](https://nsis.sourceforge.io), then `pwsh installer/build.ps1`. The setup file lands in `dist/`.
 
