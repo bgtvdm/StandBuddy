@@ -1,6 +1,6 @@
 [package]
 name = "standbuddy"
-version = "3.0.2"
+version = "3.0.3"
 edition = "2021"
 description = "Standing breaks, bedtime and gaming limits"
 license = "MIT"
