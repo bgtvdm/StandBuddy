@@ -10,7 +10,7 @@ use windows::{
         Graphics::{
             Direct2D::{
                 Common::{D2D1_ALPHA_MODE_PREMULTIPLIED, D2D1_COLOR_F, D2D1_PIXEL_FORMAT, D2D_RECT_F},
-                D2D1CreateFactory, ID2D1Factory, D2D1_DRAW_TEXT_OPTIONS_ENABLE_COLOR_FONT,
+                D2D1CreateFactory, ID2D1Factory, D2D1_DRAW_TEXT_OPTIONS_ENABLE_COLOR_FONT, D2D1_DRAW_TEXT_OPTIONS_NO_SNAP,
                 D2D1_FACTORY_TYPE_SINGLE_THREADED, D2D1_RENDER_TARGET_PROPERTIES,
                 D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE,
             },
@@ -43,12 +43,30 @@ pub fn render(emoji: &str, px: u32, gray: bool) -> Option<Image> {
     Some(Image::from_rgba8_premultiplied(buf))
 }
 
+/// `frames` copies of the emoji in a `px` × `px + extra` canvas, copy `k` drawn `k * extra / frames`
+/// px lower. The software renderer places images on whole pixels only; a bobbing icon moved by
+/// whole pixels plus one of these sub-pixel copies moves smoothly (`extra` = one logical px).
+pub fn render_frames(emoji: &str, px: u32, extra: u32, frames: u32) -> Vec<Image> {
+    (0..frames)
+        .filter_map(|k| {
+            let dy = k as f32 * extra as f32 / frames as f32;
+            draw_at(emoji, px, px + extra, dy).map_err(|err| eprintln!("emoji {emoji}: {err}")).ok()
+        })
+        .map(Image::from_rgba8_premultiplied)
+        .collect()
+}
+
 fn draw(emoji: &str, px: u32) -> Result<SharedPixelBuffer<Rgba8Pixel>> {
+    draw_at(emoji, px, px, 0.0)
+}
+
+/// The glyph fitted in a `px` square whose top is `dy` px down a `px` × `height` canvas.
+fn draw_at(emoji: &str, px: u32, height: u32, dy: f32) -> Result<SharedPixelBuffer<Rgba8Pixel>> {
     unsafe {
         // The event-loop thread already has COM (winit); this is a no-op there.
         let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
         let wic: IWICImagingFactory = CoCreateInstance(&CLSID_WICImagingFactory, None, CLSCTX_INPROC_SERVER)?;
-        let bitmap = wic.CreateBitmap(px, px, &GUID_WICPixelFormat32bppPBGRA, WICBitmapCacheOnLoad)?;
+        let bitmap = wic.CreateBitmap(px, height, &GUID_WICPixelFormat32bppPBGRA, WICBitmapCacheOnLoad)?;
         let d2d: ID2D1Factory = D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, None)?;
         let props = D2D1_RENDER_TARGET_PROPERTIES {
             pixelFormat: D2D1_PIXEL_FORMAT { format: DXGI_FORMAT_B8G8R8A8_UNORM, alphaMode: D2D1_ALPHA_MODE_PREMULTIPLIED },
@@ -78,19 +96,19 @@ fn draw(emoji: &str, px: u32) -> Result<SharedPixelBuffer<Rgba8Pixel>> {
         rt.DrawText(
             &text,
             &format,
-            &D2D_RECT_F { left: 0.0, top: 0.0, right: side, bottom: side },
+            &D2D_RECT_F { left: 0.0, top: dy, right: side, bottom: side + dy },
             &brush,
-            D2D1_DRAW_TEXT_OPTIONS_ENABLE_COLOR_FONT,
+            D2D1_DRAW_TEXT_OPTIONS_ENABLE_COLOR_FONT | D2D1_DRAW_TEXT_OPTIONS_NO_SNAP, // NO_SNAP: keep sub-pixel offsets
             DWRITE_MEASURING_MODE_NATURAL,
         );
         rt.EndDraw(None, None)?;
 
-        let lock = bitmap.Lock(&WICRect { X: 0, Y: 0, Width: px as i32, Height: px as i32 }, WICBitmapLockRead.0 as u32)?;
+        let lock = bitmap.Lock(&WICRect { X: 0, Y: 0, Width: px as i32, Height: height as i32 }, WICBitmapLockRead.0 as u32)?;
         let stride = lock.GetStride()? as usize;
         let (mut size, mut data) = (0u32, std::ptr::null_mut());
         lock.GetDataPointer(&mut size, &mut data)?;
         let src = std::slice::from_raw_parts(data, size as usize);
-        let mut buf = SharedPixelBuffer::<Rgba8Pixel>::new(px, px);
+        let mut buf = SharedPixelBuffer::<Rgba8Pixel>::new(px, height);
         for (y, row) in buf.make_mut_slice().chunks_mut(px as usize).enumerate() {
             for (x, p) in row.iter_mut().enumerate() {
                 let i = y * stride + x * 4; // BGRA
@@ -122,5 +140,29 @@ mod tests {
         assert!(color.iter().any(|p| p.a > 200 && (p.r as i32 - p.b as i32).abs() > 60), "no color glyph");
         let gray = pixels("🎯", true);
         assert!(gray.iter().all(|p| p.r == p.g && p.g == p.b));
+    }
+
+    #[test]
+    fn bob_frames_shift_by_a_quarter_pixel_each() {
+        // Alpha-weighted vertical centre of each frame; without NO_SNAP DirectWrite snaps the
+        // glyph to whole pixels and all four frames come out identical (the bob then jerks).
+        let centre = |img: &Image| {
+            let buf = img.to_rgba8_premultiplied().unwrap();
+            let w = buf.width() as usize;
+            let (mut sy, mut sa) = (0.0, 0.0);
+            for (i, p) in buf.as_slice().iter().enumerate() {
+                sy += (i / w) as f64 * p.a as f64;
+                sa += p.a as f64;
+            }
+            sy / sa
+        };
+        let frames = render_frames("🤸", 92, 1, 4);
+        assert_eq!(frames.len(), 4);
+        let ys: Vec<f64> = frames.iter().map(centre).collect();
+        for pair in ys.windows(2) {
+            let step = pair[1] - pair[0];
+            // Antialiasing makes the steps uneven (measured 0.22 / 0.23 / 0.35); snapped = 0.
+            assert!((0.1..0.45).contains(&step), "frame step {step:.3} px, centres {ys:?}");
+        }
     }
 }

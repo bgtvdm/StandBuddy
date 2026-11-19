@@ -22,7 +22,7 @@ component TodayCell inherits VerticalLayout {
     in property <string> label;
     in property <bool> first;
     padding-left: root.first ? 0 : 14px;
-    Text { text: root.value; font-size: 26px; font-weight: 300; height: 30px; color: Theme.text-primary; } // line-height 1.15
+    Text { text: root.value; font-size: 26px; font-weight: 300 + Theme.text-boost; height: 30px; color: Theme.text-primary; } // line-height 1.15
     Text { text: root.label; font-size: 12.5px; color: Theme.text-secondary; }
 }
 
@@ -44,6 +44,7 @@ export component Stats inherits Window {
     width: 480px;
     height: 720px;
     default-font-family: "DM Sans";
+    default-font-weight: 400 + Theme.text-boost;
     default-font-size: 14px;
     background: Theme.bg-base;
 
@@ -65,7 +66,7 @@ export component Stats inherits Window {
                 Text {
                     text: root.streak;
                     font-size: 56px;
-                    font-weight: 300;
+                    font-weight: 300 + Theme.text-boost;
                     letter-spacing: -1.68px;
                     height: 56px; // line-height: 1
                     color: Theme.accent-ink;
@@ -75,7 +76,7 @@ export component Stats inherits Window {
                 VerticalLayout {
                     alignment: center;
                     horizontal-stretch: 1;
-                    Text { text: "day streak"; font-size: 15px; font-weight: 600; color: Theme.text-primary; }
+                    Text { text: "day streak"; font-size: 15px; font-weight: 600 + Theme.text-boost; color: Theme.text-primary; }
                     Hint { text: "Days in a row with at least one completed break"; }
                 }
             }

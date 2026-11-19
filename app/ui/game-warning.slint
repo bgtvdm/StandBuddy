@@ -17,6 +17,7 @@ export component GameWarning inherits Window {
     no-frame: true;
     always-on-top: true;
     default-font-family: "DM Sans";
+    default-font-weight: 400 + Theme.text-boost;
     background: root.key;
     width: min(340px, toast-layout.preferred-width);
     height: toast-layout.preferred-height;
@@ -49,14 +50,14 @@ export component GameWarning inherits Window {
                 Text {
                     text: "\{root.minutes-left} \{root.minutes-left == 1 ? "minute" : "minutes"} of game time left";
                     font-size: 16px;
-                    font-weight: 600;
+                    font-weight: 600 + Theme.text-boost;
                     letter-spacing: 0.2px;
                     color: Theme.overlay-accent;
                 }
                 Text {
                     text: "Daily game limit approaching";
                     font-size: 13px;
-                    font-weight: 300;
+                    font-weight: 300 + Theme.text-boost;
                     color: Theme.overlay-text-muted;
                 }
             }

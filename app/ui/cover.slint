@@ -1,0 +1,15 @@
+// Covers every monitor except the one with the overlay (break, bedtime, shutdown, game limit):
+// the same baked background, no content and no controls. Rust sizes it to its monitor; it never
+// takes focus (the overlay keeps it). Closed together with its overlay.
+import { Theme } from "theme.slint";
+
+export component Cover inherits Window {
+    in property <image> bg;
+
+    title: "StandBuddy cover";
+    no-frame: true;
+    always-on-top: true;
+    background: Theme.overlay-bg-1;
+
+    Image { width: 100%; height: 100%; source: root.bg; image-fit: fill; }
+}

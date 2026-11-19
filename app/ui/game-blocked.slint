@@ -14,6 +14,7 @@ export component GameBlocked inherits Window {
     no-frame: true;
     always-on-top: true;
     default-font-family: "DM Sans";
+    default-font-weight: 400 + Theme.text-boost;
     background: Theme.overlay-bg-1;
 
     property <int> remaining: 5;
@@ -45,6 +46,7 @@ export component GameBlocked inherits Window {
                 Text {
                     text: "Game Limit Reached";
                     font-family: "DM Serif Display";
+                    font-weight: 400; // static face: no boost (would synthesize bold)
                     font-size: 52px;
                     letter-spacing: -0.5px;
                     color: Theme.overlay-text;
@@ -56,7 +58,7 @@ export component GameBlocked inherits Window {
                         ? "You've reached your \{root.limit-hours}h daily game limit. See you tomorrow."
                         : "You've used your daily game time. See you tomorrow.";
                     font-size: 26px;
-                    font-weight: 300;
+                    font-weight: 300 + Theme.text-boost;
                     letter-spacing: 0.3px;
                     color: Theme.overlay-accent;
                     horizontal-alignment: center;
@@ -64,9 +66,9 @@ export component GameBlocked inherits Window {
                 Rectangle { height: 44px; }
                 HorizontalLayout {
                     alignment: center;
-                    Text { text: "Closing in "; font-size: 18px; font-weight: 300; color: Theme.overlay-text-muted; vertical-alignment: bottom; }
-                    Text { text: root.remaining; font-size: 22px; font-weight: 500; color: Theme.overlay-accent; vertical-alignment: bottom; }
-                    Text { text: " seconds"; font-size: 18px; font-weight: 300; color: Theme.overlay-text-muted; vertical-alignment: bottom; }
+                    Text { text: "Closing in "; font-size: 18px; font-weight: 300 + Theme.text-boost; color: Theme.overlay-text-muted; vertical-alignment: bottom; }
+                    Text { text: root.remaining; font-size: 22px; font-weight: 500 + Theme.text-boost; color: Theme.overlay-accent; vertical-alignment: bottom; }
+                    Text { text: " seconds"; font-size: 18px; font-weight: 300 + Theme.text-boost; color: Theme.overlay-text-muted; vertical-alignment: bottom; }
                 }
             }
         }

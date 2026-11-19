@@ -7,7 +7,11 @@ import "fonts/DMSerifDisplay-Regular.ttf";
 
 export component SleepWarning inherits Window {
     in property <image> bg;
-    in property <image> moon-icon;
+    // Sub-pixel copies of the icon (ui.rs `bob_frames`), each 1/n px lower in a box 1 px taller.
+    in property <[image]> moon-frames;
+    // Float offset in px: 0 → 6 → 0 every 4 s, like v2's float animation (≈ cosine).
+    property <float> bob: 3 * (1 + cos(animation-tick() / 4s * 360deg));
+    property <float> bob-px: floor(root.bob);
     in property <int> minutes-left: 30;
     callback done();
 
@@ -15,6 +19,7 @@ export component SleepWarning inherits Window {
     no-frame: true;
     always-on-top: true;
     default-font-family: "DM Sans";
+    default-font-weight: 400 + Theme.text-boost;
     background: Theme.overlay-bg-1;
 
     property <int> remaining: 5;
@@ -43,15 +48,16 @@ export component SleepWarning inherits Window {
                 Rectangle {
                     height: 6px + 113px + 28px;
                     Image {
-                        source: root.moon-icon;
+                        source: root.moon-frames[floor((root.bob - root.bob-px) * root.moon-frames.length)];
                         width: 113px;
-                        height: 113px;
-                        y: 6px - 3px * (1 - cos(animation-tick() / 4s * 360deg));
+                        height: self.width * root.moon-frames[0].height / root.moon-frames[0].width;
+                        y: root.bob-px * 1px;
                     }
                 }
                 Text {
                     text: "Bedtime Soon";
                     font-family: "DM Serif Display";
+                    font-weight: 400; // static face: no boost (would synthesize bold)
                     font-size: 52px;
                     letter-spacing: -0.5px;
                     color: Theme.overlay-text;
@@ -61,7 +67,7 @@ export component SleepWarning inherits Window {
                 Text {
                     text: "\{root.minutes-left} minutes until bedtime";
                     font-size: 28px;
-                    font-weight: 300;
+                    font-weight: 300 + Theme.text-boost;
                     letter-spacing: 0.3px;
                     color: Theme.overlay-accent;
                     horizontal-alignment: center;
@@ -88,9 +94,9 @@ export component SleepWarning inherits Window {
                 HorizontalLayout {
                     alignment: center;
                     spacing: 0;
-                    Text { text: "Closing in "; font-size: 20px; font-weight: 300; color: Theme.overlay-text-muted; vertical-alignment: bottom; }
-                    Text { text: root.remaining; font-size: 24px; font-weight: 500; color: Theme.overlay-accent; vertical-alignment: bottom; }
-                    Text { text: " seconds"; font-size: 20px; font-weight: 300; color: Theme.overlay-text-muted; vertical-alignment: bottom; }
+                    Text { text: "Closing in "; font-size: 20px; font-weight: 300 + Theme.text-boost; color: Theme.overlay-text-muted; vertical-alignment: bottom; }
+                    Text { text: root.remaining; font-size: 24px; font-weight: 500 + Theme.text-boost; color: Theme.overlay-accent; vertical-alignment: bottom; }
+                    Text { text: " seconds"; font-size: 20px; font-weight: 300 + Theme.text-boost; color: Theme.overlay-text-muted; vertical-alignment: bottom; }
                 }
             }
         }

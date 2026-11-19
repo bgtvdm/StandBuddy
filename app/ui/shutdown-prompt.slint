@@ -28,7 +28,7 @@ component PillButton inherits Rectangle {
         label-text := Text {
             text: root.label;
             font-size: 15px;
-            font-weight: 500;
+            font-weight: 500 + Theme.text-boost;
             letter-spacing: 0.2px;
             color: Theme.overlay-text;
             vertical-alignment: center;
@@ -52,6 +52,7 @@ export component ShutdownPrompt inherits Window {
     no-frame: true;
     always-on-top: true;
     default-font-family: "DM Sans";
+    default-font-weight: 400 + Theme.text-boost;
     background: Theme.overlay-bg-1;
 
     property <int> remaining: 30;
@@ -84,6 +85,7 @@ export component ShutdownPrompt inherits Window {
                 Text {
                     text: "Time for Bed";
                     font-family: "DM Serif Display";
+                    font-weight: 400; // static face: no boost (would synthesize bold)
                     font-size: 48px;
                     letter-spacing: -0.5px;
                     color: Theme.overlay-text;
@@ -93,7 +95,7 @@ export component ShutdownPrompt inherits Window {
                 Text {
                     text: "Your computer will shut down";
                     font-size: 20px;
-                    font-weight: 300;
+                    font-weight: 300 + Theme.text-boost;
                     letter-spacing: 0.2px;
                     color: Theme.overlay-text-secondary;
                     horizontal-alignment: center;
@@ -110,7 +112,7 @@ export component ShutdownPrompt inherits Window {
                 Text {
                     text: "\{floor(root.remaining / 60)}:\{mod(root.remaining, 60) < 10 ? "0" : ""}\{mod(root.remaining, 60)}";
                     font-size: 72px;
-                    font-weight: 300;
+                    font-weight: 300 + Theme.text-boost;
                     letter-spacing: -2px;
                     color: Theme.overlay-danger;
                     horizontal-alignment: center;
@@ -134,7 +136,7 @@ export component ShutdownPrompt inherits Window {
                     if root.snoozes-left > 0: Text {
                         text: "\{root.snoozes-left} \{root.snoozes-left == 1 ? "snooze" : "snoozes"} remaining";
                         font-size: 13px;
-                        font-weight: 300;
+                        font-weight: 300 + Theme.text-boost;
                         color: Theme.overlay-text-muted;
                         horizontal-alignment: center;
                     }

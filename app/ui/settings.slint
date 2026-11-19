@@ -35,7 +35,7 @@ component Chip inherits Rectangle {
     label := Text {
         text: root.text;
         font-size: 13px;
-        font-weight: root.active ? 600 : 400;
+        font-weight: (root.active ? 600 : 400) + Theme.text-boost;
         color: root.active ? Theme.text-on-accent : area.has-hover ? Theme.text-primary : Theme.text-secondary;
     }
     area := TouchArea { mouse-cursor: pointer; clicked => { root.clicked(); } }
@@ -150,6 +150,7 @@ export component Settings inherits Window {
     width: 380px;
     height: 760px;
     default-font-family: "DM Sans";
+    default-font-weight: 400 + Theme.text-boost;
     default-font-size: 14px;
     background: Theme.bg-base;
 

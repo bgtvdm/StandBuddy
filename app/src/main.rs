@@ -22,7 +22,11 @@ use serde_json::{json, Map, Value};
 use std::{cell::RefCell, os::windows::process::CommandExt, process::Command, thread, time::Duration};
 use windows_sys::Win32::{
     Foundation::{GetLastError, ERROR_ALREADY_EXISTS, HWND, LPARAM, LRESULT, WPARAM},
-    System::{LibraryLoader::GetModuleHandleW, Threading::CreateMutexW, WindowsProgramming::QueryUnbiasedInterruptTime},
+    System::{
+        LibraryLoader::{GetModuleHandleW, GetProcAddress, LoadLibraryW},
+        Threading::CreateMutexW,
+        WindowsProgramming::QueryUnbiasedInterruptTime,
+    },
     UI::WindowsAndMessaging::{CreateWindowExW, DefWindowProcW, RegisterClassW, WM_ENDSESSION, WNDCLASSW},
 };
 
@@ -382,6 +386,28 @@ fn is_only_instance() -> bool {
     }
 }
 
+/// The tray menu is a plain Win32 popup menu (Slint's tray), which Windows draws light
+/// unless the app opts in to dark mode. uxtheme's undocumented ordinals, as Explorer and
+/// Notepad++ use them: 135 = SetPreferredAppMode (1 = follow the Windows app theme; on
+/// 1809 the same slot is AllowDarkModeForApp(true)), 136 = FlushMenuThemes.
+fn follow_windows_menu_theme() {
+    let dll: Vec<u16> = "uxtheme.dll".encode_utf16().chain([0]).collect();
+    unsafe {
+        let module = LoadLibraryW(dll.as_ptr());
+        if module.is_null() {
+            return;
+        }
+        if let Some(set_mode) = GetProcAddress(module, 135 as *const u8) {
+            let set_mode: unsafe extern "system" fn(i32) -> i32 = std::mem::transmute(set_mode);
+            set_mode(1);
+        }
+        if let Some(flush) = GetProcAddress(module, 136 as *const u8) {
+            let flush: unsafe extern "system" fn() = std::mem::transmute(flush);
+            flush();
+        }
+    }
+}
+
 /// Logoff/shutdown ends the process without leaving the Slint loop, so flush the game
 /// clock here, as Quit does. Needs a hidden top-level window: message-only windows get
 /// no WM_ENDSESSION. The loop pumps this thread, so the handler runs on the state's thread.
@@ -469,6 +495,7 @@ fn main() {
     }
     ui::select_backend().expect("failed to start the UI backend");
     STATE.with(|state| *state.borrow_mut() = Some(St::load()));
+    follow_windows_menu_theme();
     ui::tray_init(on_menu).expect("failed to create the tray icon");
     let launch_at_login = with(|st| {
         start_interval(st);

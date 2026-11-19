@@ -7,7 +7,11 @@ import "fonts/DMSerifDisplay-Regular.ttf";
 
 export component Break inherits Window {
     in property <image> bg;
-    in property <image> break-icon;
+    // Sub-pixel copies of the icon (ui.rs `bob_frames`), each 1/n px lower in a box 1 px taller.
+    in property <[image]> break-frames;
+    // Bob offset in px: 0 → 8 → 0 every 3 s, like v2's gentleBounce (ease-in-out ≈ cosine).
+    property <float> bob: 4 * (1 + cos(animation-tick() / 3s * 360deg));
+    property <float> bob-px: floor(root.bob);
     in property <string> time: "0:00";
     in property <float> progress: 0;
     in property <bool> emergency: true;
@@ -19,6 +23,7 @@ export component Break inherits Window {
     no-frame: true;
     always-on-top: true;
     default-font-family: "DM Sans";
+    default-font-weight: 400 + Theme.text-boost;
     background: Theme.overlay-bg-1;
 
     // Emergency hold: 5 s of continuous left-button press on the button.
@@ -51,15 +56,16 @@ export component Break inherits Window {
                 Rectangle {
                     height: 92px + 8px + 24px;
                     Image {
-                        source: root.break-icon;
+                        source: root.break-frames[floor((root.bob - root.bob-px) * root.break-frames.length)];
                         width: 92px;
-                        height: 92px;
-                        y: 8px - 4px * (1 - cos(animation-tick() / 3s * 360deg));
+                        height: self.width * root.break-frames[0].height / root.break-frames[0].width;
+                        y: root.bob-px * 1px;
                     }
                 }
                 Text {
                     text: "Time to Stand!";
                     font-family: "DM Serif Display";
+                    font-weight: 400; // static face: no boost (would synthesize bold)
                     font-size: 52px;
                     letter-spacing: -0.5px;
                     color: Theme.overlay-text;
@@ -69,7 +75,7 @@ export component Break inherits Window {
                 Text {
                     text: "Take a moment to stretch and move around";
                     font-size: 20px;
-                    font-weight: 300;
+                    font-weight: 300 + Theme.text-boost;
                     letter-spacing: 0.3px;
                     color: Theme.overlay-text-secondary;
                     horizontal-alignment: center;
@@ -78,7 +84,7 @@ export component Break inherits Window {
                 Text {
                     text: root.time;
                     font-size: 80px;
-                    font-weight: 300;
+                    font-weight: 300 + Theme.text-boost;
                     letter-spacing: -2px;
                     color: Theme.overlay-accent;
                     horizontal-alignment: center;
@@ -139,7 +145,7 @@ export component Break inherits Window {
                         text: !root.holding ? "Hold for 5 seconds to unlock"
                             : root.held > 0 ? "Keep holding… \{ceil((5s - root.held) / 1s)}s" : "Keep holding…";
                         font-size: 13px;
-                        font-weight: 300;
+                        font-weight: 300 + Theme.text-boost;
                         min-height: 20px;
                         color: root.holding ? Theme.overlay-danger-soft : Theme.overlay-text-muted;
                         horizontal-alignment: center;
@@ -165,7 +171,7 @@ export component Break inherits Window {
                                 Text {
                                     text: "TIP FOR THIS BREAK";
                                     font-size: 11px;
-                                    font-weight: 500;
+                                    font-weight: 500 + Theme.text-boost;
                                     letter-spacing: 1.5px;
                                     color: Theme.overlay-text-muted;
                                     vertical-alignment: center;
@@ -181,7 +187,7 @@ export component Break inherits Window {
                                         Text {
                                             text: root.tip-category;
                                             font-size: 10px;
-                                            font-weight: 500;
+                                            font-weight: 500 + Theme.text-boost;
                                             letter-spacing: 0.5px;
                                             color: Theme.overlay-accent;
                                         }
@@ -191,7 +197,7 @@ export component Break inherits Window {
                             Text {
                                 text: root.tip-text;
                                 font-size: 17px;
-                                font-weight: 300;
+                                font-weight: 300 + Theme.text-boost;
                                 wrap: word-wrap;
                                 color: Theme.overlay-text-secondary;
                                 horizontal-alignment: center;

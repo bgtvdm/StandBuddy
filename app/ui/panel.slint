@@ -20,6 +20,7 @@ export component PanelHeader inherits Rectangle {
         Text {
             text: root.title;
             font-family: "DM Serif Display";
+            font-weight: 400; // static face: no boost (would synthesize bold)
             font-size: 26px;
             letter-spacing: -0.26px;
             color: Theme.text-primary;
@@ -69,7 +70,7 @@ export component PillButton inherits Rectangle {
     label := Text {
         text: root.text;
         font-size: root.small ? 13px : 14px;
-        font-weight: root.kind == 1 || root.kind == 2 ? 600 : 500;
+        font-weight: (root.kind == 1 || root.kind == 2 ? 600 : 500) + Theme.text-boost;
         color: root.kind == 1 || root.kind == 2 ? Theme.text-on-accent
             : root.kind == 3 && !area.has-hover ? Theme.text-secondary
             : Theme.text-primary;
@@ -98,7 +99,7 @@ export component Hint inherits Text {
 
 export component SectionTitle inherits Text {
     font-size: 15px;
-    font-weight: 600;
+    font-weight: 600 + Theme.text-boost;
     letter-spacing: -0.075px;
     color: Theme.text-primary;
 }

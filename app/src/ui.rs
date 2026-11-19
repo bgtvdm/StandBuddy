@@ -4,10 +4,13 @@
 use crate::{bg, data, emoji, mono, St};
 use serde_json::Value;
 use slint::{winit_030::WinitWindowAccessor, CloseRequestResponse, ComponentHandle, Image, ModelRc, Timer, TimerMode, VecModel};
-use std::{any::Any, cell::Cell, cell::RefCell, collections::HashMap, collections::HashSet, time::Duration};
+use std::{any::Any, cell::Cell, cell::RefCell, collections::HashMap, collections::HashSet, rc::Rc, time::Duration};
 use windows_sys::Win32::{
     Foundation::{BOOL, HWND, LPARAM, POINT, RECT},
-    Graphics::Gdi::{GetMonitorInfoW, InvalidateRect, MonitorFromPoint, MONITORINFO, MONITOR_DEFAULTTONEAREST},
+    Graphics::Gdi::{
+        EnumDisplayMonitors, GetMonitorInfoW, InvalidateRect, MonitorFromPoint, HDC, HMONITOR, MONITORINFO,
+        MONITOR_DEFAULTTONEAREST,
+    },
     System::Threading::GetCurrentThreadId,
     UI::{
         HiDpi::{GetDpiForMonitor, MDT_EFFECTIVE_DPI},
@@ -34,6 +37,7 @@ thread_local! {
     static LIVE: RefCell<HashMap<String, Live>> = RefCell::new(HashMap::new());
     static BREAK: RefCell<Option<slint::Weak<Break>>> = const { RefCell::new(None) };
     static ICONS: RefCell<HashMap<(String, u32, bool), Image>> = RefCell::new(HashMap::new());
+    static BOBS: RefCell<HashMap<(String, u32), Vec<Image>>> = RefCell::new(HashMap::new());
     /// Read by the winit attributes hook while a window is created (`Component::new`).
     static CREATE: Cell<Create> = const { Cell::new(Create::Normal) };
 }
@@ -81,20 +85,24 @@ fn open(label: &str) -> bool {
 /// The top-level window of this thread titled `title` (Slint doesn't expose the HWND
 /// without another crate; the title is unique per window kind).
 fn thread_window(title: &str) -> Option<HWND> {
-    struct Find { want: Vec<u16>, found: HWND }
+    thread_windows(title).into_iter().next()
+}
+
+/// Every top-level window of this thread titled `title` (covers share one title).
+fn thread_windows(title: &str) -> Vec<HWND> {
+    struct Find { want: Vec<u16>, found: Vec<HWND> }
     unsafe extern "system" fn each(hwnd: HWND, lparam: LPARAM) -> BOOL {
         let find = &mut *(lparam as *mut Find);
         let mut buf = [0u16; 64];
         let n = GetWindowTextW(hwnd, buf.as_mut_ptr(), buf.len() as i32).max(0) as usize;
         if buf[..n] == find.want[..] {
-            find.found = hwnd;
-            return 0;
+            find.found.push(hwnd);
         }
         1
     }
-    let mut find = Find { want: title.encode_utf16().collect(), found: std::ptr::null_mut() };
+    let mut find = Find { want: title.encode_utf16().collect(), found: Vec::new() };
     unsafe { EnumThreadWindows(GetCurrentThreadId(), Some(each), &mut find as *mut Find as LPARAM) };
-    (!find.found.is_null()).then_some(find.found)
+    find.found
 }
 
 /// The monitor under the cursor: full rect, work area (without the taskbar), scale factor.
@@ -112,14 +120,14 @@ fn cursor_monitor() -> (RECT, RECT, f32) {
     }
 }
 
-/// Top-left corner for a `w`×`h` window next to `pt`, kept `margin` inside `work`. The
-/// panels open from the tray menu, so the cursor sits by the tray: clamping into the
-/// work area puts the window against the taskbar, beside the tray, on whichever edge it is.
+/// Top-left corner for a `w`×`h` window up and to the left of `pt` (its bottom-right
+/// corner `margin` away from it), kept `margin` inside `work`. The panels open from the
+/// tray menu, so the cursor sits by the tray: the window lands above-left of the tray, off it.
 fn near_point(pt: POINT, (w, h): (i32, i32), work: RECT, margin: i32) -> (i32, i32) {
     let fit = |v: i32, lo: i32, hi: i32| if hi < lo { lo } else { v.clamp(lo, hi) };
     (
-        fit(pt.x - w / 2, work.left + margin, work.right - w - margin),
-        fit(pt.y - h / 2, work.top + margin, work.bottom - h - margin),
+        fit(pt.x - margin - w, work.left + margin, work.right - w - margin),
+        fit(pt.y - margin - h, work.top + margin, work.bottom - h - margin),
     )
 }
 
@@ -129,7 +137,7 @@ fn place_near_cursor(window: &slint::Window) {
     let mut pt = POINT { x: 0, y: 0 };
     unsafe { GetCursorPos(&mut pt) };
     let size = window.size();
-    let (x, y) = near_point(pt, (size.width as i32, size.height as i32), work, (12.0 * scale) as i32);
+    let (x, y) = near_point(pt, (size.width as i32, size.height as i32), work, (16.0 * scale) as i32);
     window.set_position(slint::PhysicalPosition::new(x, y));
 }
 
@@ -212,6 +220,24 @@ fn icon(emoji: &str, css_px: u32) -> Image {
     icon_with(emoji, css_px, false)
 }
 
+/// Sub-pixel copies of a bobbing icon for the cursor monitor's scale: `BOB_FRAMES` copies,
+/// each 1/BOB_FRAMES of a pixel lower, in a box one pixel taller (the .slint picks one per
+/// frame; whole pixels move the box). Drawn at the exact screen size: Slint scales images
+/// without filtering, so a 2× source would drop the half-pixel steps (measured).
+const BOB_FRAMES: u32 = 4;
+fn bob_frames(emoji: &str, css_px: u32) -> ModelRc<Image> {
+    let (_, _, scale) = cursor_monitor();
+    let side = ((css_px as f32 / 0.78).round() * scale).round() as u32;
+    let extra = scale.round().max(1.0) as u32;
+    let frames = BOBS.with(|bobs| {
+        bobs.borrow_mut()
+            .entry((emoji.to_string(), side))
+            .or_insert_with(|| emoji::render_frames(emoji, side, extra, BOB_FRAMES))
+            .clone()
+    });
+    ModelRc::new(VecModel::from(frames))
+}
+
 const BREAK_ICON: (&str, u32) = ("\u{1F938}", 72); // 🤸, break.html
 const MOON_ICON: (&str, u32) = ("\u{1F319}", 88); // 🌙, sleep-warning.html
 const SLEEP_ICON: (&str, u32) = ("\u{1F634}", 88); // 😴, shutdown-prompt.html
@@ -222,8 +248,9 @@ const BADGE_PX: u32 = 24; // stats.html .achievement-icon
 /// Draw the overlay icons ahead of time: the first DirectWrite/Direct2D call costs ~60 ms,
 /// which would otherwise land between the trigger and the overlay's first frame.
 pub fn warm_up() {
-    icon(BREAK_ICON.0, BREAK_ICON.1);
-    for (emoji, px) in [MOON_ICON, SLEEP_ICON, HOURGLASS_ICON, GAME_ICON] {
+    bob_frames(BREAK_ICON.0, BREAK_ICON.1);
+    bob_frames(MOON_ICON.0, MOON_ICON.1);
+    for (emoji, px) in [SLEEP_ICON, HOURGLASS_ICON, GAME_ICON] {
         icon(emoji, px);
     }
     for achievement in data::ACHIEVEMENTS {
@@ -253,16 +280,97 @@ fn palette_of(payload: &Value) -> i32 {
     bg::palette_index(payload["theme"].as_str().unwrap_or("warm"))
 }
 
-/// Every overlay: block Alt+F4, show it, keep it alive with its probe + focus timers.
-fn present<C: ComponentHandle + 'static>(win: C, label: &'static str, title: &'static str) -> Result<Live, slint::PlatformError> {
+/// Every overlay: block Alt+F4, show it, cover the other monitors, keep it alive with its
+/// probe + focus timers. `palette` / `glows` bake the covers' background for their own aspect.
+fn present<C: ComponentHandle + 'static>(
+    win: C,
+    label: &'static str,
+    title: &'static str,
+    palette: i32,
+    glows: &'static [bg::Glow],
+) -> Result<Live, slint::PlatformError> {
     win.window().on_close_requested(|| CloseRequestResponse::KeepWindowShown);
     win.show()?;
+    let covers = cover_other_monitors(palette, glows);
     let weak = win.as_weak();
+    let cover_weak: Vec<_> = covers.0.iter().map(|c| c.as_weak()).collect();
     Ok(Live {
-        hide: Box::new(move || if let Some(w) = weak.upgrade() { let _ = w.hide(); }),
-        _component: Box::new(win),
+        hide: Box::new(move || {
+            if let Some(w) = weak.upgrade() {
+                let _ = w.hide();
+            }
+            for c in cover_weak.iter().filter_map(|c| c.upgrade()) {
+                let _ = c.hide();
+            }
+        }),
+        _component: Box::new((win, covers)),
         timers: overlay_timers(label, title),
     })
+}
+
+/// Full rects of every monitor except the one under the cursor (the overlay's).
+fn other_monitors() -> Vec<RECT> {
+    unsafe extern "system" fn each(monitor: HMONITOR, _: HDC, _: *mut RECT, lparam: LPARAM) -> BOOL {
+        let rects = &mut *(lparam as *mut Vec<RECT>);
+        let mut mi: MONITORINFO = std::mem::zeroed();
+        mi.cbSize = std::mem::size_of::<MONITORINFO>() as u32;
+        if GetMonitorInfoW(monitor, &mut mi) != 0 {
+            rects.push(mi.rcMonitor);
+        }
+        1
+    }
+    let mut rects: Vec<RECT> = Vec::new();
+    unsafe { EnumDisplayMonitors(std::ptr::null_mut(), std::ptr::null(), Some(each), &mut rects as *mut _ as LPARAM) };
+    let (own, _, _) = cursor_monitor();
+    rects.retain(|r| (r.left, r.top, r.right, r.bottom) != (own.left, own.top, own.right, own.bottom));
+    rects
+}
+
+/// A blank, always-on-top cover on each other monitor, created without activation so the
+/// overlay keeps focus; a probe drops them from the taskbar and repaints each once it is
+/// mapped (a window without animation otherwise stays white, see `repaint`).
+fn cover_other_monitors(palette: i32, glows: &'static [bg::Glow]) -> (Vec<Cover>, Rc<Timer>) {
+    let mut covers = Vec::new();
+    for r in other_monitors() {
+        let Ok(cover) = create(Create::NoActivate, Cover::new) else { continue };
+        cover.global::<Theme>().set_palette(palette);
+        let (w, h) = ((r.right - r.left).max(1), (r.bottom - r.top).max(1));
+        cover.window().set_position(slint::PhysicalPosition::new(r.left, r.top));
+        cover.window().set_size(slint::PhysicalSize::new(w as u32, h as u32));
+        cover.set_bg(bg::overlay_background(palette, w as f32 / h as f32, glows));
+        cover.window().on_close_requested(|| CloseRequestResponse::KeepWindowShown);
+        if cover.show().is_ok() {
+            covers.push(cover);
+        }
+    }
+    let probe = Rc::new(Timer::default());
+    if covers.is_empty() {
+        return (covers, probe);
+    }
+    let (want, started) = (covers.len(), mono());
+    let mut done: HashSet<isize> = HashSet::new();
+    let stop = Rc::downgrade(&probe);
+    probe.start(TimerMode::Repeated, Duration::from_millis(5), move || {
+        for hwnd in thread_windows("StandBuddy cover") {
+            if done.contains(&(hwnd as isize)) || unsafe { IsWindowVisible(hwnd) } == 0 {
+                continue;
+            }
+            done.insert(hwnd as isize);
+            unsafe {
+                let ex = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
+                let add = (WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE) as isize;
+                SetWindowLongPtrW(hwnd, GWL_EXSTYLE, (ex | add) & !(WS_EX_APPWINDOW as isize));
+            }
+            repaint(hwnd);
+        }
+        if done.len() >= want || mono() - started > 3000 {
+            log("cover", &format!("{} painted +{}ms", done.len(), mono() - started));
+            if let Some(timer) = stop.upgrade() {
+                timer.stop();
+            }
+        }
+    });
+    (covers, probe)
 }
 
 /// A window callback that closes its own window: run it after the callback returns.
@@ -279,7 +387,7 @@ fn open_break(payload: &Value) -> Result<Live, slint::PlatformError> {
     let win = Break::new()?;
     let palette = palette_of(payload);
     win.global::<Theme>().set_palette(palette);
-    win.set_break_icon(icon(BREAK_ICON.0, BREAK_ICON.1));
+    win.set_break_frames(bob_frames(BREAK_ICON.0, BREAK_ICON.1));
     win.set_time(format_left((payload["duration"].as_f64().unwrap_or(60.0) * 1000.0) as i64).into());
     win.set_emergency(payload["emergencyUnlock"].as_bool() != Some(false));
     win.set_tip_text(payload["tip"]["text"].as_str().unwrap_or("").into());
@@ -288,19 +396,19 @@ fn open_break(payload: &Value) -> Result<Live, slint::PlatformError> {
     let aspect = cover_cursor_monitor(win.window());
     win.set_bg(bg::overlay_background(palette, aspect, bg::BREAK));
     BREAK.with(|b| *b.borrow_mut() = Some(win.as_weak()));
-    present(win, "break", "StandBuddy break")
+    present(win, "break", "StandBuddy break", palette, bg::BREAK)
 }
 
 fn open_sleep_warning(payload: &Value) -> Result<Live, slint::PlatformError> {
     let win = SleepWarning::new()?;
     let palette = palette_of(payload);
     win.global::<Theme>().set_palette(palette);
-    win.set_moon_icon(icon(MOON_ICON.0, MOON_ICON.1));
+    win.set_moon_frames(bob_frames(MOON_ICON.0, MOON_ICON.1));
     win.set_minutes_left(payload["minutesLeft"].as_i64().unwrap_or(30) as i32);
     win.on_done(|| later(crate::sleep_warning_close));
     let aspect = cover_cursor_monitor(win.window());
     win.set_bg(bg::overlay_background(palette, aspect, bg::MOON));
-    present(win, "sleep-warning", "StandBuddy bedtime warning")
+    present(win, "sleep-warning", "StandBuddy bedtime warning", palette, bg::MOON)
 }
 
 fn open_shutdown_prompt(payload: &Value) -> Result<Live, slint::PlatformError> {
@@ -313,7 +421,7 @@ fn open_shutdown_prompt(payload: &Value) -> Result<Live, slint::PlatformError> {
     win.on_shutdown(|| later(crate::shutdown_execute));
     let aspect = cover_cursor_monitor(win.window());
     win.set_bg(bg::overlay_background(palette, aspect, bg::SHUTDOWN));
-    present(win, "shutdown-prompt", "StandBuddy shutdown prompt")
+    present(win, "shutdown-prompt", "StandBuddy shutdown prompt", palette, bg::SHUTDOWN)
 }
 
 fn open_game_blocked(payload: &Value) -> Result<Live, slint::PlatformError> {
@@ -325,7 +433,7 @@ fn open_game_blocked(payload: &Value) -> Result<Live, slint::PlatformError> {
     win.set_limit_hours(hours.map(|h| format!("{h}")).unwrap_or_default().into());
     let aspect = cover_cursor_monitor(win.window());
     win.set_bg(bg::overlay_background(palette, aspect, bg::MOON));
-    present(win, "game-blocked", "StandBuddy game limit")
+    present(win, "game-blocked", "StandBuddy game limit", palette, bg::MOON)
 }
 
 /// The game-warning toast: bottom-right of the cursor's work area, never activated,
@@ -607,15 +715,17 @@ mod tests {
     use super::{format_left, near_point, POINT, RECT};
 
     #[test]
-    fn panels_open_beside_the_tray_inside_the_work_area() {
+    fn panels_open_above_left_of_the_tray_inside_the_work_area() {
         let work = RECT { left: 0, top: 0, right: 1920, bottom: 1040 }; // taskbar at the bottom
-        let tray = POINT { x: 1800, y: 1060 };
-        assert_eq!(near_point(tray, (380, 760), work, 12), (1528, 268));
-        // Taskbar on the left, tray at its bottom.
-        let work = RECT { left: 60, top: 0, right: 1920, bottom: 1080 };
-        assert_eq!(near_point(POINT { x: 30, y: 1050 }, (380, 760), work, 12), (72, 308));
+        // Cursor on the tray menu (above the tray): bottom-right corner 16 px up-left of it.
+        assert_eq!(near_point(POINT { x: 1800, y: 960 }, (380, 760), work, 16), (1404, 184));
+        // Cursor on the taskbar itself: still above the taskbar, left of the cursor.
+        assert_eq!(near_point(POINT { x: 1800, y: 1060 }, (380, 760), work, 16), (1404, 264));
+        // Taskbar on the left: no room to the left, so the window starts at the work area.
+        let left = RECT { left: 60, top: 0, right: 1920, bottom: 1080 };
+        assert_eq!(near_point(POINT { x: 30, y: 1050 }, (380, 760), left, 16), (76, 274));
         // Taller than the work area: pinned to the top, never above it.
-        assert_eq!(near_point(tray, (380, 1200), RECT { left: 0, top: 0, right: 1920, bottom: 1040 }, 12).1, 12);
+        assert_eq!(near_point(POINT { x: 1800, y: 960 }, (380, 1200), work, 16).1, 16);
     }
 
     #[test]

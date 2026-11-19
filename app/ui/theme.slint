@@ -4,6 +4,11 @@
 export global Theme {
     in-out property <int> palette: 0;
     in-out property <bool> dark: true;
+    // Added to every DM Sans weight. Slint's software renderer blends glyph coverage without
+    // gamma: light-on-dark text comes out thinner than v2's DirectWrite text, dark-on-light
+    // about the same. Tuned by the ink of one label vs v2.1.2 (2026-11-19): dark 65.6k → 78.9k
+    // (v2 84.5k, the rest is ClearType fringes); light needs none. Overlays keep dark = true.
+    out property <int> text-boost: root.dark ? 120 : 0;
     property <[color]> bg-base-light: [#faf8f5, #f5f8fa, #f5f8f5, #f8f5fa, #f5f6f7, #faf5f6];
     property <[color]> bg-base-dark: [#1a1612, #0d1520, #0d150d, #150d18, #12151a, #180d10];
     out property <color> bg-base: root.dark ? root.bg-base-dark[root.palette] : root.bg-base-light[root.palette];
