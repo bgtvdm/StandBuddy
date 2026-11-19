@@ -112,6 +112,27 @@ fn cursor_monitor() -> (RECT, RECT, f32) {
     }
 }
 
+/// Top-left corner for a `w`×`h` window next to `pt`, kept `margin` inside `work`. The
+/// panels open from the tray menu, so the cursor sits by the tray: clamping into the
+/// work area puts the window against the taskbar, beside the tray, on whichever edge it is.
+fn near_point(pt: POINT, (w, h): (i32, i32), work: RECT, margin: i32) -> (i32, i32) {
+    let fit = |v: i32, lo: i32, hi: i32| if hi < lo { lo } else { v.clamp(lo, hi) };
+    (
+        fit(pt.x - w / 2, work.left + margin, work.right - w - margin),
+        fit(pt.y - h / 2, work.top + margin, work.bottom - h - margin),
+    )
+}
+
+/// Move a shown-but-unmapped panel next to the cursor (the tray).
+fn place_near_cursor(window: &slint::Window) {
+    let (_, work, scale) = cursor_monitor();
+    let mut pt = POINT { x: 0, y: 0 };
+    unsafe { GetCursorPos(&mut pt) };
+    let size = window.size();
+    let (x, y) = near_point(pt, (size.width as i32, size.height as i32), work, (12.0 * scale) as i32);
+    window.set_position(slint::PhysicalPosition::new(x, y));
+}
+
 /// Borderless, always-on-top window covering the monitor under the cursor — no
 /// fullscreen mode switch (~20 ms cheaper, specs/native-ui.md Phase 0).
 fn cover_cursor_monitor(window: &slint::Window) -> f32 {
@@ -364,6 +385,7 @@ fn present_panel<C: ComponentHandle + 'static>(win: C, label: &'static str, titl
         CloseRequestResponse::KeepWindowShown
     });
     win.show()?;
+    place_near_cursor(win.window());
     let probe = Timer::default();
     let (mut done, started) = (false, mono());
     probe.start(TimerMode::Repeated, Duration::from_millis(2), move || {
@@ -582,7 +604,19 @@ pub fn set_tooltip(text: &str) {
 
 #[cfg(test)]
 mod tests {
-    use super::format_left;
+    use super::{format_left, near_point, POINT, RECT};
+
+    #[test]
+    fn panels_open_beside_the_tray_inside_the_work_area() {
+        let work = RECT { left: 0, top: 0, right: 1920, bottom: 1040 }; // taskbar at the bottom
+        let tray = POINT { x: 1800, y: 1060 };
+        assert_eq!(near_point(tray, (380, 760), work, 12), (1528, 268));
+        // Taskbar on the left, tray at its bottom.
+        let work = RECT { left: 60, top: 0, right: 1920, bottom: 1080 };
+        assert_eq!(near_point(POINT { x: 30, y: 1050 }, (380, 760), work, 12), (72, 308));
+        // Taller than the work area: pinned to the top, never above it.
+        assert_eq!(near_point(tray, (380, 1200), RECT { left: 0, top: 0, right: 1920, bottom: 1040 }, 12).1, 12);
+    }
 
     #[test]
     fn break_countdown_rounds_up_to_whole_seconds() {
