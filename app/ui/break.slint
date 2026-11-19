@@ -100,6 +100,9 @@ export component Break inherits Window {
                         Rectangle {
                             x: 0;
                             width: parent.width * clamp(root.progress, 0, 1);
+                            // `progress` arrives once a second; gliding across that second
+                            // makes the fill continuous. Only this 320×4 strip repaints.
+                            animate width { duration: 1000ms; easing: linear; }
                             border-radius: 2px;
                             background: @linear-gradient(90deg, Theme.overlay-accent-dim 0%, Theme.overlay-accent 100%);
                         }
