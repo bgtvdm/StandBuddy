@@ -162,8 +162,11 @@ fn reset_session(st: &mut St) {
 // killed is read from the data folder: it is user-writable, so any process running as
 // the user could otherwise widen what the task kills elevated. For the same reason the
 // script is embedded in the task's own action (-EncodedCommand), never run from a file.
+// The data folder is resolved by the script at run time (as data::data_dir() does, minus
+// the STANDBUDDY_DATA_DIR dev override): a path baked into the text could carry quote
+// characters PowerShell honours (U+2018..U+201B) and inject code that runs elevated.
 const KILL_SCRIPT: &str = r#"$ErrorActionPreference = 'SilentlyContinue'
-$dir = '{DIR}'
+$dir = Join-Path $env:APPDATA 'standbuddy'
 $allowed = @({ALLOWED})
 $denied = @({DENIED})
 $targetFile = Join-Path $dir 'kill-target.txt'
@@ -262,17 +265,14 @@ fn ps_list<S: AsRef<str>>(names: &[S]) -> String {
     names.iter().map(|n| format!("'{}'", n.as_ref())).collect::<Vec<_>>().join(",")
 }
 
-fn kill_script(dir: &str, allowed: &[String]) -> String {
-    KILL_SCRIPT
-        .replace("{DIR}", &dir.replace('\'', "''"))
-        .replace("{ALLOWED}", &ps_list(allowed))
-        .replace("{DENIED}", &ps_list(DENIED))
+/// Only allowlist() names ([a-z0-9._-]) and DENIED are substituted — nothing else.
+fn kill_script(allowed: &[String]) -> String {
+    KILL_SCRIPT.replace("{ALLOWED}", &ps_list(allowed)).replace("{DENIED}", &ps_list(DENIED))
 }
 
 /// Base64 of the kill script as the task runs it (`-EncodedCommand`) for this game list.
 fn encoded_script(games: &[String]) -> String {
-    let dir = data::data_dir().display().to_string();
-    base64(&utf16le(&kill_script(&dir, &allowlist(games))))
+    base64(&utf16le(&kill_script(&allowlist(games))))
 }
 
 /// The registered kill task exists and carries exactly this script.
@@ -536,9 +536,35 @@ mod tests {
     #[test]
     fn kill_script_runs_as_an_encoded_command() {
         // No kill-target.txt in this folder, so the script parses, then returns at once.
-        let script = kill_script(r"C:\standbuddy-no-such-folder", &["cs2".into()]);
+        let script = with_dir(&kill_script(&["cs2".into()]), r"C:\standbuddy-no-such-folder");
         let encoded = base64(&utf16le(&script));
         assert!(succeeded(cmd("powershell.exe").args(["-NoProfile", "-NonInteractive", "-EncodedCommand", &encoded])));
+    }
+
+    /// Test-only: point the script at a scratch folder instead of %APPDATA%\standbuddy.
+    fn with_dir(script: &str, dir: &str) -> String {
+        let line = "$dir = Join-Path $env:APPDATA 'standbuddy'";
+        assert!(script.contains(line));
+        script.replace(line, &format!("$dir = '{}'", dir.replace('\'', "''")))
+    }
+
+    #[test]
+    fn kill_script_text_carries_no_path_or_environment_value() {
+        let script = kill_script(&allowlist(&["cs2".into(), "r5apex".into()]));
+        assert!(["{DIR}", "{ALLOWED}", "{DENIED}"].iter().all(|p| !script.contains(p)));
+        assert!(!script.contains(":\\"), "no absolute path is baked in");
+        if let Some(appdata) = std::env::var_os("APPDATA") {
+            assert!(!script.contains(&*appdata.to_string_lossy()));
+        }
+        // Every quoted literal is a fixed string or an allowlisted name.
+        let quoted: Vec<&str> = script.split('\'').skip(1).step_by(2).collect();
+        let fixed = ["SilentlyContinue", "standbuddy", "kill-target.txt", "^[a-z0-9._-]+\\.exe$", "\\.exe$", ""];
+        for q in quoted {
+            assert!(
+                fixed.contains(&q) || q.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b"._-".contains(&b)),
+                "unexpected literal {q:?}"
+            );
+        }
     }
 
     #[test]
@@ -559,7 +585,7 @@ mod tests {
         fs::create_dir_all(&dir).unwrap();
         fs::write(dir.join("kill-target.txt"), target).unwrap();
         let allowed: Vec<String> = allowed.iter().map(|s| s.to_string()).collect();
-        let script = kill_script(&dir.display().to_string(), &allowed);
+        let script = with_dir(&kill_script(&allowed), &dir.display().to_string());
         let echo = script.replace("& taskkill.exe /f /im $img | Out-Null", "Write-Output \"KILL $img\"");
         assert_ne!(echo, script);
         let out = cmd("powershell.exe")

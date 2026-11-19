@@ -12,13 +12,19 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      # Rust toolchain comes from src-tauri/rust-toolchain.toml via the preinstalled rustup.
-      - run: npm run build
+      # Newer runner images may ship without NSIS; install it only when it is missing.
+      - name: NSIS
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "${env:ProgramFiles(x86)}\NSIS\makensis.exe")) { choco install nsis -y --no-progress }
+      # Rust toolchain comes from app/rust-toolchain.toml via the preinstalled rustup;
+      # rc.exe for the exe icon comes from the preinstalled Windows SDK.
+      - name: Test
+        working-directory: app
+        run: cargo test --release
+      - name: Build installer
+        shell: pwsh
+        run: ./installer/build.ps1
       - uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
-          files: src-tauri/target/release/bundle/nsis/StandBuddy_*_x64-setup.exe
+          files: dist/StandBuddy_*_x64-setup.exe

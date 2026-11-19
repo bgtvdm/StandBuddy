@@ -1,12 +1,8 @@
-# Dependencies
-node_modules/
-
-# Build output
+# Build output (installer)
 dist/
 
 # Logs
 *.log
-npm-debug.log*
 
 # OS files
 Thumbs.db

@@ -42,7 +42,7 @@ When a break is due, StandBuddy covers the whole screen until the countdown ends
 
 1. Download `StandBuddy_<version>_x64-setup.exe` from the [latest release](https://github.com/bgtvdm/StandBuddy/releases/latest).
 2. Run it. If SmartScreen shows "Unknown publisher", click **More info** → **Run anyway** (the app isn't code-signed).
-3. The installer needs no admin rights. It adds Start menu and desktop shortcuts and starts StandBuddy in the tray.
+3. The installer needs no admin rights. It adds a Start menu shortcut and starts StandBuddy in the tray.
 4. Right-click the tray icon → **Settings** to set the interval and turn on **Launch at startup**.
 
 To update, run the newer installer. Settings and stats live in `%APPDATA%\standbuddy` and stay. To remove the app, use **Settings → Apps → Installed apps → StandBuddy → Uninstall**.
@@ -56,6 +56,14 @@ Coming from 1.x (the zip version)? Quit it from the tray, run the installer, the
 - **Game limiter.** Add games with a file picker or pick them from your Steam library. Play time adds up across all of them. Corner warnings show at 30 and 5 minutes left, and at zero the game process is closed, anti-cheat titles included. You can also pause break reminders while a game runs. The only way around the limit is turning it off in Settings.
 - **Themes.** Six colors (Warm, Ocean, Forest, Lavender, Slate, Rose), each in dark and light.
 
+## Built with
+
+Rust and [Slint](https://slint.dev) with its software renderer. No browser engine, no WebView2: idle in the tray it uses about 11 MB of memory and no CPU, and windows appear in under 50 ms.
+
+To build the installer: Rust (MSVC), the Windows SDK and [NSIS](https://nsis.sourceforge.io), then `pwsh installer/build.ps1`. The setup file lands in `dist/`.
+
+<a href="https://slint.dev"><img src="https://raw.githubusercontent.com/slint-ui/slint/master/logo/MadeWithSlint-logo-whitebg.png" width="160" alt="Made with Slint"></a>
+
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE). Slint is used under the [Slint Royalty-free License 2.0](https://github.com/slint-ui/slint/blob/master/LICENSES/LicenseRef-Slint-Royalty-free-2.0.md); the bundled DM Sans and DM Serif Display fonts are under the SIL Open Font License.

@@ -21,8 +21,9 @@ use data::{Settings, Stats};
 use serde_json::{json, Map, Value};
 use std::{cell::RefCell, os::windows::process::CommandExt, process::Command, thread, time::Duration};
 use windows_sys::Win32::{
-    Foundation::{GetLastError, ERROR_ALREADY_EXISTS},
-    System::{Threading::CreateMutexW, WindowsProgramming::QueryUnbiasedInterruptTime},
+    Foundation::{GetLastError, ERROR_ALREADY_EXISTS, HWND, LPARAM, LRESULT, WPARAM},
+    System::{LibraryLoader::GetModuleHandleW, Threading::CreateMutexW, WindowsProgramming::QueryUnbiasedInterruptTime},
+    UI::WindowsAndMessaging::{CreateWindowExW, DefWindowProcW, RegisterClassW, WM_ENDSESSION, WNDCLASSW},
 };
 
 pub struct St {
@@ -381,6 +382,34 @@ fn is_only_instance() -> bool {
     }
 }
 
+/// Logoff/shutdown ends the process without leaving the Slint loop, so flush the game
+/// clock here, as Quit does. Needs a hidden top-level window: message-only windows get
+/// no WM_ENDSESSION. The loop pumps this thread, so the handler runs on the state's thread.
+fn watch_session_end() {
+    unsafe extern "system" fn proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
+        if msg == WM_ENDSESSION && wparam != 0 {
+            // Can arrive while `with` is active (any nested message pump): never panic here.
+            STATE.with(|state| {
+                if let Some(st) = state.try_borrow_mut().ok().as_mut().and_then(|s| s.as_mut()) {
+                    game::flush(st, true);
+                    if data::is_test_dir() {
+                        eprintln!("session end {}", mono());
+                    }
+                }
+            });
+        }
+        unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) }
+    }
+    let class: Vec<u16> = "StandBuddySessionWatch".encode_utf16().chain([0]).collect();
+    unsafe {
+        let instance = GetModuleHandleW(std::ptr::null());
+        let wc = WNDCLASSW { lpfnWndProc: Some(proc), hInstance: instance, lpszClassName: class.as_ptr(), ..std::mem::zeroed() };
+        RegisterClassW(&wc);
+        // Never shown (no WS_VISIBLE); lives until the process exits.
+        CreateWindowExW(0, class.as_ptr(), class.as_ptr(), 0, 0, 0, 0, 0, std::ptr::null_mut(), std::ptr::null_mut(), instance, std::ptr::null());
+    }
+}
+
 /// Test mode only: `STANDBUDDY_OPEN=settings,break,…` opens windows without the tray.
 /// `wait[:ms]` (default 1500) delays the rest; `quit` ends the run, so a scripted smoke
 /// test exits on its own.
@@ -449,6 +478,7 @@ fn main() {
         st.settings.launch_at_login
     });
     thread::spawn(move || sync_autostart(launch_at_login));
+    watch_session_end();
 
     let ticker = slint::Timer::default();
     ticker.start(slint::TimerMode::Repeated, Duration::from_secs(1), || with(tick));

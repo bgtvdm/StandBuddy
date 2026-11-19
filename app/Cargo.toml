@@ -1,6 +1,6 @@
 [package]
 name = "standbuddy"
-version = "3.0.0-dev"
+version = "3.0.0"
 edition = "2021"
 description = "Standing breaks, bedtime and gaming limits"
 license = "MIT"
@@ -15,6 +15,7 @@ windows-sys = { version = "0.59", features = [
   "Win32_Graphics_Gdi",
   "Win32_Media_Audio",
   "Win32_Security",
+  "Win32_System_LibraryLoader",
   "Win32_System_Threading",
   "Win32_System_WindowsProgramming",
   "Win32_System_Diagnostics_ToolHelp",
