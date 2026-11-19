@@ -157,28 +157,37 @@ fn reset_session(app: &AppHandle, st: &mut St) {
 // enables the limiter (one UAC prompt) and triggered silently with `schtasks /run`.
 // It has no trigger, so it never fires on its own.
 
-// Reads the target from kill-target.txt, validates it, and cross-checks it against
-// gameList in settings.json — a tampered target file can only ever kill a listed game.
-// The script is embedded in the task's own action (-EncodedCommand), never run from a
-// file: the data folder is user-writable, and a script file there would let any
-// process running as the user swap in code that the task then runs elevated.
+// Reads the target from kill-target.txt and kills it only if it is in the allowlist
+// baked into the script when the task was registered (one UAC prompt per game-list
+// change) and not a system or security process. Nothing that decides what may be
+// killed is read from the data folder: it is user-writable, so any process running as
+// the user could otherwise widen what the task kills elevated. For the same reason the
+// script is embedded in the task's own action (-EncodedCommand), never run from a file.
 const KILL_SCRIPT: &str = r#"$ErrorActionPreference = 'SilentlyContinue'
 $dir = '{DIR}'
+$allowed = @({ALLOWED})
+$denied = @({DENIED})
 $targetFile = Join-Path $dir 'kill-target.txt'
-$cfgFile = Join-Path $dir 'settings.json'
 if (-not (Test-Path $targetFile)) { return }
 $img = (Get-Content -Raw -LiteralPath $targetFile).Trim().ToLower()
 if ($img -notmatch '^[a-z0-9._-]+\.exe$') { return }
 $base = $img -replace '\.exe$', ''
-$allowed = $false
-try {
-  $cfg = Get-Content -Raw -LiteralPath $cfgFile | ConvertFrom-Json
-  foreach ($g in $cfg.gameList) {
-    if ((([string]$g) -replace '\.exe$', '').ToLower() -eq $base) { $allowed = $true; break }
-  }
-} catch { }
-if ($allowed) { & taskkill.exe /f /im $img | Out-Null }
+if ($denied -contains $base) { return }
+if ($allowed -contains $base) { & taskkill.exe /f /im $img | Out-Null }
 "#;
+
+/// Never killed by the elevated task, whatever the game list says (image names without .exe).
+const DENIED: &[&str] = &[
+    "system", "smss", "csrss", "wininit", "winlogon", "services", "lsass", "lsaiso", "svchost",
+    "dwm", "explorer", "fontdrvhost", "spoolsv", "sihost", "taskhostw", "conhost", "ctfmon",
+    "msmpeng", "nissrv", "mssense", "securityhealthservice", "securityhealthsystray", "smartscreen",
+    "trustedinstaller", "tiworker", "powershell", "pwsh", "cmd", "taskmgr", "mmc", "regedit",
+    "schtasks", "taskkill", "standbuddy",
+];
+/// The script travels base64-encoded twice inside one command line (32,767 chars): 64 names
+/// of up to 40 characters fit with room to spare (tested).
+const MAX_GAMES: usize = 64;
+const MAX_NAME: usize = 40;
 
 const KILL_TASK_XML: &str = r#"<?xml version="1.0" encoding="UTF-16"?>
 <Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
@@ -231,10 +240,40 @@ fn succeeded(command: &mut std::process::Command) -> bool {
     command.output().is_ok_and(|out| out.status.success())
 }
 
-/// Base64 of the kill script as the task runs it (`-EncodedCommand`).
-fn encoded_script() -> String {
-    let dir = data::data_dir().display().to_string().replace('\'', "''");
-    base64(&utf16le(&KILL_SCRIPT.replace("{DIR}", &dir)))
+/// What the elevated task may kill: listed games with plain image names, minus DENIED,
+/// sorted (so the same list always yields the same script) and capped at MAX_GAMES.
+fn allowlist(games: &[String]) -> Vec<String> {
+    let mut names: Vec<String> = games
+        .iter()
+        .filter_map(|game| image_name(game))
+        .filter_map(|image| image.strip_suffix(".exe").map(str::to_string))
+        .filter(|name| name.len() <= MAX_NAME && !DENIED.contains(&name.as_str()))
+        .collect();
+    names.sort();
+    names.dedup();
+    if names.len() > MAX_GAMES {
+        eprintln!("game-limiter: {} games listed; the elevated kill covers the first {MAX_GAMES}", names.len());
+        names.truncate(MAX_GAMES);
+    }
+    names
+}
+
+/// PowerShell array items: 'a','b'. Names are [a-z0-9._-] only, so quoting is safe.
+fn ps_list<S: AsRef<str>>(names: &[S]) -> String {
+    names.iter().map(|n| format!("'{}'", n.as_ref())).collect::<Vec<_>>().join(",")
+}
+
+fn kill_script(dir: &str, allowed: &[String]) -> String {
+    KILL_SCRIPT
+        .replace("{DIR}", &dir.replace('\'', "''"))
+        .replace("{ALLOWED}", &ps_list(allowed))
+        .replace("{DENIED}", &ps_list(DENIED))
+}
+
+/// Base64 of the kill script as the task runs it (`-EncodedCommand`) for this game list.
+fn encoded_script(games: &[String]) -> String {
+    let dir = data::data_dir().display().to_string();
+    base64(&utf16le(&kill_script(&dir, &allowlist(games))))
 }
 
 /// The registered kill task exists and carries exactly this script.
@@ -266,17 +305,19 @@ fn register_script(encoded: &str) -> String {
     format!("$x = @'\n{xml}\n'@\nRegister-ScheduledTask -TaskName '{KILL_TASK}' -Xml $x -Force | Out-Null")
 }
 
-/// Register the kill task if it's missing. Runs off-thread: it waits on a UAC prompt.
-pub fn ensure_kill_task() {
+/// Register the kill task if it's missing or carries another game list. Runs
+/// off-thread: it waits on a UAC prompt.
+pub fn ensure_kill_task(games: Vec<String>) {
     if data::is_test_dir() {
         return;
     }
-    thread::spawn(|| {
+    thread::spawn(move || {
         // Left behind by builds that registered the task from a file.
         let _ = fs::remove_file(data::data_dir().join("kill-task.xml"));
-        let encoded = encoded_script();
+        let encoded = encoded_script(&games);
         // Registered and carrying exactly this script? Anything else is re-registered —
-        // including the Electron-era task, which ran a script file from the data folder.
+        // a task for another game list, a pre-2.1.2 task that read the list from
+        // settings.json, and the Electron-era task, which ran a script file from the data folder.
         if task_is_ours(&encoded) {
             return;
         }
@@ -295,12 +336,13 @@ pub fn ensure_kill_task() {
     });
 }
 
-fn kill(entry: &str) {
+fn kill(st: &St, entry: &str) {
     let Some(image) = image_name(entry) else { return };
+    let games = st.settings.game_list.clone();
     thread::spawn(move || {
         // Hand the target to the elevated task — only if it is ours; otherwise fall back
         // to a direct (likely refused for protected games, but logged) taskkill.
-        let handed_off = task_is_ours(&encoded_script())
+        let handed_off = task_is_ours(&encoded_script(&games))
             && fs::write(data::data_dir().join("kill-target.txt"), &image).is_ok()
             && succeeded(cmd("schtasks").args(["/run", "/tn", KILL_TASK]));
         if !handed_off {
@@ -326,7 +368,7 @@ fn enforce(app: &AppHandle, st: &mut St) {
     // minute instead of up to ten.
     set_poll(st, true);
     if let Some(game) = game {
-        kill(&game);
+        kill(st, &game);
     }
     show_blocked(app, st);
 }
@@ -344,7 +386,7 @@ fn handle_foreground(app: &AppHandle, st: &mut St, process: &str) {
             reset_session(app, st);
         }
         if let Some(game) = matched {
-            kill(&game);
+            kill(st, &game);
             show_blocked(app, st);
         }
         return;
@@ -495,14 +537,55 @@ mod tests {
     #[test]
     fn kill_script_runs_as_an_encoded_command() {
         // No kill-target.txt in this folder, so the script parses, then returns at once.
-        let script = KILL_SCRIPT.replace("{DIR}", r"C:\standbuddy-no-such-folder");
+        let script = kill_script(r"C:\standbuddy-no-such-folder", &["cs2".into()]);
         let encoded = base64(&utf16le(&script));
         assert!(succeeded(cmd("powershell.exe").args(["-NoProfile", "-NonInteractive", "-EncodedCommand", &encoded])));
     }
 
     #[test]
+    fn allowlist_keeps_listed_games_only_and_never_system_processes() {
+        let games: Vec<String> =
+            ["CS2.exe", "r5apex", "lsass.exe", "MsMpEng", "bad name.exe", "cs2"].map(String::from).into();
+        assert_eq!(allowlist(&games), ["cs2", "r5apex"]);
+        assert_eq!(allowlist(&[]), Vec::<String>::new());
+        let many: Vec<String> = (0..100).map(|i| format!("game{i:03}")).collect();
+        assert_eq!(allowlist(&many).len(), MAX_GAMES);
+        // The script depends on the list, so a changed list means "not our task" -> re-register.
+        assert_ne!(encoded_script(&["cs2".into()]), encoded_script(&["cs2".into(), "r5apex".into()]));
+    }
+
+    /// Runs the real script on a target, with taskkill swapped for an echo.
+    fn dry_run(allowed: &[&str], target: &str, tag: &str) -> String {
+        let dir = std::env::temp_dir().join(format!("standbuddy-kill-test-{}-{tag}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(dir.join("kill-target.txt"), target).unwrap();
+        let allowed: Vec<String> = allowed.iter().map(|s| s.to_string()).collect();
+        let script = kill_script(&dir.display().to_string(), &allowed);
+        let echo = script.replace("& taskkill.exe /f /im $img | Out-Null", "Write-Output \"KILL $img\"");
+        assert_ne!(echo, script);
+        let out = cmd("powershell.exe")
+            .args(["-NoProfile", "-NonInteractive", "-EncodedCommand", &base64(&utf16le(&echo))])
+            .output()
+            .unwrap();
+        let _ = fs::remove_dir_all(&dir);
+        String::from_utf8_lossy(&out.stdout).trim().to_string()
+    }
+
+    #[test]
+    fn kill_script_kills_only_baked_in_games_and_never_denied_ones() {
+        assert_eq!(dry_run(&["cs2"], "cs2.exe", "a"), "KILL cs2.exe");
+        assert_eq!(dry_run(&["cs2"], "notepad.exe", "b"), "");
+        // Even if a denied name reached the baked-in list, the script itself refuses it.
+        assert_eq!(dry_run(&["lsass", "cs2"], "lsass.exe", "c"), "");
+        assert_eq!(dry_run(&["cs2"], "cs2.exe & calc", "d"), "");
+    }
+
+    #[test]
     fn register_script_carries_well_formed_xml_and_fits_a_command_line() {
-        let encoded = encoded_script();
+        // Worst case: MAX_GAMES names of MAX_NAME characters.
+        let games: Vec<String> = (0..MAX_GAMES).map(|i| format!("{i:02}{}", "x".repeat(MAX_NAME - 2))).collect();
+        assert_eq!(allowlist(&games).len(), MAX_GAMES);
+        let encoded = encoded_script(&games);
         let script = register_script(&encoded);
         assert!(script.contains(&encoded));
         // Same script, but parse the definition instead of registering it.

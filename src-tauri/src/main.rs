@@ -389,7 +389,7 @@ fn settings_save(app: AppHandle, new_settings: Value) {
     };
     let text = |key: &str| new.get(key).and_then(Value::as_str).filter(|s| !s.is_empty());
 
-    let (launch_at_login, limiter_on) = with(&app, |st| {
+    let (launch_at_login, limiter_on, games) = with(&app, |st| {
         let s = &mut st.settings;
         let interval = num("interval", s.interval).max(1.0);
         let interval_changed = interval != s.interval;
@@ -420,11 +420,11 @@ fn settings_save(app: AppHandle, new_settings: Value) {
         game::stop(&app, st);
         game::start(&app, st);
         win::hide_panel(&app, st, "settings");
-        (st.settings.launch_at_login, st.settings.game_limiter_enabled)
+        (st.settings.launch_at_login, st.settings.game_limiter_enabled, st.settings.game_list.clone())
     });
     sync_autostart(launch_at_login);
     if limiter_on {
-        game::ensure_kill_task(); // one UAC prompt, only if the task is missing
+        game::ensure_kill_task(games); // one UAC prompt, only if the task is missing or the list changed
     }
 }
 
