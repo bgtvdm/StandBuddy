@@ -13,7 +13,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-3b3431?style=flat-square" alt="MIT license"></a>
 </p>
 
-<img src="docs/images/break.webp" alt="Full-screen break overlay in the Ocean theme: Time to Stand!, a 0:59 countdown, an Emergency Unlock button and a shoulder-roll tip">
+<img src="docs/images/break-ocean.webp" alt="Full-screen break overlay in the Ocean theme: Time to Stand!, a 0:59 countdown, an Emergency Unlock button and a shoulder-roll tip">
 
 When a break is due, StandBuddy covers the whole screen until the countdown ends. No snooze button, no "remind me later". The only way out early is holding Emergency Unlock for five seconds, and that gets counted. You can switch that exit off in Settings.
 
@@ -26,18 +26,18 @@ When a break is due, StandBuddy covers the whole screen until the countdown ends
 ### Stats: streaks, the last 7 days and 16 achievements
 
 <p align="center">
-  <img src="docs/images/stats.webp" width="420" alt="Stats window, dark Ocean theme: a 12-day streak, 9 breaks completed today, bars for the last 7 days and 7 of 16 achievements unlocked">
+  <img src="docs/images/stats-ocean.webp" width="420" alt="Stats window, dark Ocean theme: a 12-day streak, 9 breaks completed today, bars for the last 7 days and 7 of 16 achievements unlocked">
 </p>
 
 ### Settings: look, interval, break length, sleep mode, games (here in light mode)
 
 <p align="center">
-  <img src="docs/images/settings.webp" width="380" alt="Settings window, light Ocean theme: dark and light mode, six colors, reminder interval, break length, the emergency unlock switch, sleep mode with a 23:00 bedtime and the game limiter">
+  <img src="docs/images/settings-ocean.webp" width="380" alt="Settings window, light Ocean theme: dark and light mode, six colors, reminder interval, break length, the emergency unlock switch, sleep mode with a 23:00 bedtime and the game limiter">
 </p>
 
 ### Game limit: the budget is spent
 
-<img src="docs/images/game-blocked.webp" alt="Full-screen notice in the Ocean theme: Game Limit Reached, you've reached your 3h daily game limit, closing in 4 seconds">
+<img src="docs/images/game-blocked-ocean.webp" alt="Full-screen notice in the Ocean theme: Game Limit Reached, you've reached your 3h daily game limit, closing in 4 seconds">
 
 ## Install
 
