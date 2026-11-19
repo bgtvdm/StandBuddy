@@ -1,0 +1,98 @@
+// Bedtime warning — v2 ui/sleep-warning.html 1:1 where the software renderer allows. Rust
+// sets the theme, the baked background, the icon and `minutes-left`; the window counts
+// 5 s down itself and then calls `done()`. Not ported: the 15 s `moonGlow` pulse (static).
+import { Theme } from "theme.slint";
+import "fonts/DMSans-Variable.ttf";
+import "fonts/DMSerifDisplay-Regular.ttf";
+
+export component SleepWarning inherits Window {
+    in property <image> bg;
+    in property <image> moon-icon;
+    in property <int> minutes-left: 30;
+    callback done();
+
+    title: "StandBuddy bedtime warning";
+    no-frame: true;
+    always-on-top: true;
+    default-font-family: "DM Sans";
+    background: Theme.overlay-bg-1;
+
+    property <int> remaining: 5;
+    Timer {
+        interval: 1s;
+        running: root.remaining > 0;
+        triggered => {
+            root.remaining -= 1;
+            if root.remaining <= 0 { root.done(); }
+        }
+    }
+    // Ring fraction, eased linearly over each second like v2's stroke-dashoffset transition.
+    property <float> ring: root.remaining / 5;
+    animate ring { duration: 1s; easing: linear; }
+
+    Image { width: 100%; height: 100%; source: root.bg; image-fit: fill; }
+
+    VerticalLayout {
+        alignment: center;
+        HorizontalLayout {
+            alignment: center;
+            VerticalLayout {
+                alignment: start;
+
+                // 88 px emoji (113 px box, see ui.rs `icon`), floating 6 px every 4 s.
+                Rectangle {
+                    height: 6px + 113px + 28px;
+                    Image {
+                        source: root.moon-icon;
+                        width: 113px;
+                        height: 113px;
+                        y: 6px - 3px * (1 - cos(animation-tick() / 4s * 360deg));
+                    }
+                }
+                Text {
+                    text: "Bedtime Soon";
+                    font-family: "DM Serif Display";
+                    font-size: 52px;
+                    letter-spacing: -0.5px;
+                    color: Theme.overlay-text;
+                    horizontal-alignment: center;
+                }
+                Rectangle { height: 20px; }
+                Text {
+                    text: "\{root.minutes-left} minutes until bedtime";
+                    font-size: 28px;
+                    font-weight: 300;
+                    letter-spacing: 0.3px;
+                    color: Theme.overlay-accent;
+                    horizontal-alignment: center;
+                }
+                Rectangle { height: 48px + 28px; }
+                HorizontalLayout {
+                    alignment: center;
+                    // r 36, stroke 3, starting at 12 o'clock and running clockwise.
+                    Path {
+                        width: 80px;
+                        height: 80px;
+                        viewbox-width: 80;
+                        viewbox-height: 80;
+                        stroke: Theme.overlay-accent;
+                        stroke-width: 3px;
+                        fill: transparent;
+                        commands: root.ring >= 0.9999
+                            ? "M 40 4 A 36 36 0 1 1 40 76 A 36 36 0 1 1 40 4"
+                            : root.ring <= 0.0001 ? "M 40 4"
+                            : "M 40 4 A 36 36 0 \{root.ring > 0.5 ? 1 : 0} 1 \{40 + 36 * sin(root.ring * 360deg)} \{40 - 36 * cos(root.ring * 360deg)}";
+                    }
+                }
+                Rectangle { height: 28px; }
+                HorizontalLayout {
+                    alignment: center;
+                    spacing: 0;
+                    Text { text: "Closing in "; font-size: 20px; font-weight: 300; color: Theme.overlay-text-muted; vertical-alignment: bottom; }
+                    Text { text: root.remaining; font-size: 24px; font-weight: 500; color: Theme.overlay-accent; vertical-alignment: bottom; }
+                    Text { text: " seconds"; font-size: 20px; font-weight: 300; color: Theme.overlay-text-muted; vertical-alignment: bottom; }
+                }
+            }
+        }
+    }
+}

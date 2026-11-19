@@ -1,0 +1,165 @@
+// Bedtime shutdown prompt — v2 ui/shutdown-prompt.html 1:1 where the software renderer allows.
+// Rust sets the theme, background, icon and `snoozes-left`; the window counts 30 s down itself.
+// Not ported: the countdown's text-shadow.
+import { Theme } from "theme.slint";
+import "fonts/DMSans-Variable.ttf";
+import "fonts/DMSerifDisplay-Regular.ttf";
+
+component PillButton inherits Rectangle {
+    in property <string> label;
+    in property <bool> enabled: true;
+    in property <brush> fill;
+    in property <brush> hover-fill;
+    in property <brush> stroke: transparent;
+    in property <brush> hover-stroke: transparent;
+    callback clicked();
+    min-width: 260px;
+    height: 16px * 2 + label-text.preferred-height;
+    border-radius: self.height / 2;
+    opacity: root.enabled ? 1 : 0.35;
+    background: touch.has-hover && root.enabled ? root.hover-fill : root.fill;
+    border-width: 1px;
+    border-color: touch.has-hover && root.enabled ? root.hover-stroke : root.stroke;
+    animate background, border-color { duration: 200ms; }
+    HorizontalLayout {
+        padding-left: 48px;
+        padding-right: 48px;
+        alignment: center;
+        label-text := Text {
+            text: root.label;
+            font-size: 15px;
+            font-weight: 500;
+            letter-spacing: 0.2px;
+            color: Theme.overlay-text;
+            vertical-alignment: center;
+        }
+    }
+    touch := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: root.enabled ? pointer : not-allowed;
+        clicked => { root.clicked(); }
+    }
+}
+
+export component ShutdownPrompt inherits Window {
+    in property <image> bg;
+    in property <image> sleep-icon;
+    in property <int> snoozes-left: 3;
+    callback snooze(int);
+    callback shutdown();
+
+    title: "StandBuddy shutdown prompt";
+    no-frame: true;
+    always-on-top: true;
+    default-font-family: "DM Sans";
+    background: Theme.overlay-bg-1;
+
+    property <int> remaining: 30;
+    property <bool> done;
+    Timer {
+        interval: 1s;
+        running: root.remaining > 0 && !root.done;
+        triggered => {
+            root.remaining -= 1;
+            if root.remaining <= 0 { root.done = true; root.shutdown(); }
+        }
+    }
+
+    Image { width: 100%; height: 100%; source: root.bg; image-fit: fill; }
+
+    VerticalLayout {
+        alignment: center;
+        HorizontalLayout {
+            alignment: center;
+            VerticalLayout {
+                alignment: start;
+                width: 480px;
+
+                HorizontalLayout {
+                    alignment: center;
+                    padding-bottom: 28px;
+                    // 88 px emoji (113 px box, see ui.rs `icon`).
+                    Image { source: root.sleep-icon; width: 113px; height: 113px; }
+                }
+                Text {
+                    text: "Time for Bed";
+                    font-family: "DM Serif Display";
+                    font-size: 48px;
+                    letter-spacing: -0.5px;
+                    color: Theme.overlay-text;
+                    horizontal-alignment: center;
+                }
+                Rectangle { height: 12px; }
+                Text {
+                    text: "Your computer will shut down";
+                    font-size: 20px;
+                    font-weight: 300;
+                    letter-spacing: 0.2px;
+                    color: Theme.overlay-text-secondary;
+                    horizontal-alignment: center;
+                }
+                Rectangle { height: 44px; }
+                Text {
+                    text: "Shutting down in";
+                    font-size: 14px;
+                    letter-spacing: 0.3px;
+                    color: Theme.overlay-text-muted;
+                    horizontal-alignment: center;
+                }
+                Rectangle { height: 12px; }
+                Text {
+                    text: "\{floor(root.remaining / 60)}:\{mod(root.remaining, 60) < 10 ? "0" : ""}\{mod(root.remaining, 60)}";
+                    font-size: 72px;
+                    font-weight: 300;
+                    letter-spacing: -2px;
+                    color: Theme.overlay-danger;
+                    horizontal-alignment: center;
+                }
+                Rectangle { height: 44px; }
+
+                VerticalLayout {
+                    spacing: 14px;
+                    HorizontalLayout {
+                        alignment: center;
+                        PillButton {
+                            label: "Snooze 5 Minutes";
+                            enabled: root.snoozes-left > 0 && !root.done;
+                            fill: #ffffff14;
+                            hover-fill: #ffffff24;
+                            stroke: #ffffff26;
+                            hover-stroke: #ffffff40;
+                            clicked => { root.done = true; root.snooze(root.snoozes-left - 1); }
+                        }
+                    }
+                    if root.snoozes-left > 0: Text {
+                        text: "\{root.snoozes-left} \{root.snoozes-left == 1 ? "snooze" : "snoozes"} remaining";
+                        font-size: 13px;
+                        font-weight: 300;
+                        color: Theme.overlay-text-muted;
+                        horizontal-alignment: center;
+                    }
+                    HorizontalLayout {
+                        alignment: center;
+                        PillButton {
+                            label: "Shut Down Now";
+                            enabled: !root.done;
+                            fill: Theme.overlay-danger;
+                            hover-fill: Theme.overlay-danger-soft;
+                            clicked => { root.done = true; root.shutdown(); }
+                        }
+                    }
+                }
+
+                if root.snoozes-left <= 0: Text {
+                    text: "No more snoozes! Shutdown will proceed.";
+                    font-size: 15px;
+                    color: Theme.overlay-accent;
+                    horizontal-alignment: center;
+                    // v2: margin-top 20px.
+                    height: self.preferred-height + 20px;
+                    vertical-alignment: bottom;
+                }
+            }
+        }
+    }
+}

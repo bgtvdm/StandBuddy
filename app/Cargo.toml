@@ -1,0 +1,43 @@
+[package]
+name = "standbuddy"
+version = "3.0.0-dev"
+edition = "2021"
+description = "Standing breaks, bedtime and gaming limits"
+license = "MIT"
+
+[dependencies]
+slint = { version = "1.19", default-features = false, features = ["std", "compat-1-2", "backend-winit", "renderer-software", "system-tray", "unstable-winit-030"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+chrono = "0.4"
+windows-sys = { version = "0.59", features = [
+  "Win32_Foundation",
+  "Win32_Graphics_Gdi",
+  "Win32_Media_Audio",
+  "Win32_Security",
+  "Win32_System_Threading",
+  "Win32_System_WindowsProgramming",
+  "Win32_System_Diagnostics_ToolHelp",
+  "Win32_UI_Controls_Dialogs",
+  "Win32_UI_HiDpi",
+  "Win32_UI_WindowsAndMessaging",
+] }
+
+windows = { version = "0.62", features = [
+  "Win32_Graphics_Direct2D",
+  "Win32_Graphics_Direct2D_Common",
+  "Win32_Graphics_DirectWrite",
+  "Win32_Graphics_Dxgi_Common",
+  "Win32_Graphics_Imaging",
+  "Win32_System_Com",
+] }
+
+[build-dependencies]
+slint-build = "1.19"
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

@@ -1,0 +1,441 @@
+// Settings panel — v2 ui/settings.html. The form lives here; Rust fills it, validates on
+// Save and builds the same JSON `settings_save` takes. Theme and mode clicks recolour this
+// window at once, like v2. Deviation: bedtime is a 24-hour "HH:MM" field (v2 used the
+// browser's time picker).
+import { Theme } from "theme.slint";
+import { PanelHeader, PillButton, SectionRule, Hint, SectionTitle, PanelScroll, PanelFooter } from "panel.slint";
+import "fonts/DMSans-Variable.ttf";
+import "fonts/DMSerifDisplay-Regular.ttf";
+
+export struct GameRow {
+    exe: string,
+    name: string,
+    pause: bool,
+}
+
+export struct ScanRow {
+    name: string,
+    exe: string,
+    added: bool,
+    checked: bool,
+}
+
+// .seg button / .preset-btn
+component Chip inherits Rectangle {
+    in property <string> text;
+    in property <bool> active;
+    callback clicked();
+    height: 32px;
+    width: max(46px, label.preferred-width + 26px);
+    border-radius: 16px;
+    border-width: root.active ? 0 : 1px;
+    border-color: area.has-hover ? Theme.text-secondary : Theme.text-primary.with-alpha(0.20);
+    background: root.active ? Theme.accent : transparent;
+    animate background, border-color { duration: 150ms; }
+    label := Text {
+        text: root.text;
+        font-size: 13px;
+        font-weight: root.active ? 600 : 400;
+        color: root.active ? Theme.text-on-accent : area.has-hover ? Theme.text-primary : Theme.text-secondary;
+    }
+    area := TouchArea { mouse-cursor: pointer; clicked => { root.clicked(); } }
+}
+
+// .switch
+component Switch inherits Rectangle {
+    in-out property <bool> checked;
+    width: 40px;
+    height: 24px;
+    border-radius: 12px;
+    background: root.checked ? Theme.accent : Theme.text-primary.with-alpha(0.22);
+    animate background { duration: 200ms; }
+    Rectangle {
+        x: root.checked ? 19px : 3px;
+        y: 3px;
+        width: 18px;
+        height: 18px;
+        border-radius: 9px;
+        background: Theme.bg-base;
+        animate x { duration: 200ms; easing: cubic-bezier(0.16, 1, 0.3, 1); }
+    }
+    TouchArea { mouse-cursor: pointer; clicked => { root.checked = !root.checked; } }
+}
+
+// input[type=checkbox] with accent-color. Visual only: the row around it handles clicks.
+component Check inherits Rectangle {
+    in property <bool> checked;
+    width: 15px;
+    height: 15px;
+    border-radius: 3px;
+    border-width: root.checked ? 0 : 1.5px;
+    border-color: Theme.text-secondary;
+    background: root.checked ? Theme.accent : transparent;
+    if root.checked: Path {
+        width: 15px;
+        height: 15px;
+        viewbox-width: 15;
+        viewbox-height: 15;
+        commands: "M 3.5 7.5 L 6.3 10.3 L 11.5 4.8";
+        stroke: Theme.text-on-accent;
+        stroke-width: 1.8px;
+        stroke-line-cap: round;
+        fill: transparent;
+    }
+}
+
+// input[type=number|time]
+component Field inherits Rectangle {
+    in-out property <string> text <=> input.text;
+    in property <bool> error;
+    in property <length> field-width: 58px;
+    in property <InputType> kind: InputType.number;
+    width: root.field-width;
+    height: 36px;
+    border-radius: 10px;
+    border-width: 1px;
+    border-color: root.error ? Theme.danger : input.has-focus ? Theme.accent-ink : Theme.text-primary.with-alpha(0.18);
+    background: Theme.bg-input;
+    animate border-color { duration: 150ms; }
+    input := TextInput {
+        x: 8px;
+        width: parent.width - 16px;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        font-size: 14px;
+        color: Theme.text-primary;
+        selection-background-color: Theme.accent-glow;
+        input-type: root.kind;
+        single-line: true;
+    }
+    public function grab() { input.focus(); input.select-all(); }
+}
+
+component Label inherits Text {
+    color: Theme.text-secondary;
+    vertical-alignment: center;
+}
+
+// "Remind me every [35] minutes"
+component Say inherits HorizontalLayout {
+    spacing: 10px;
+    alignment: start;
+    min-height: 36px;
+}
+
+export component Settings inherits Window {
+    in-out property <string> interval-text;
+    in-out property <string> break-text;
+    in-out property <string> hours-text;
+    in-out property <string> bedtime-text;
+    in-out property <bool> emergency;
+    in-out property <bool> sleep-on;
+    in-out property <bool> limiter-on;
+    in-out property <bool> launch;
+    in-out property <[GameRow]> games;
+    in property <bool> scan-open;
+    in property <bool> scanning;
+    in property <string> scan-status;
+    in-out property <[ScanRow]> scan-rows;
+    callback drag();
+    callback cancel();
+    callback save();
+    callback add-game();
+    callback scan-steam();
+    callback add-selected();
+    callback close-scan();
+    callback remove-game(int);
+
+    title: "StandBuddy Settings";
+    no-frame: true;
+    width: 380px;
+    height: 760px;
+    default-font-family: "DM Sans";
+    default-font-size: 14px;
+    background: Theme.bg-base;
+
+    out property <bool> interval-ok: root.interval-text.is-float() && root.interval-text.to-float() >= 1;
+    out property <bool> break-ok: root.break-text.is-float() && root.break-text.to-float() >= 10;
+    out property <bool> hours-ok: root.hours-text.is-float() && root.hours-text.to-float() >= 0.5;
+    pure callback valid-time(string) -> bool;
+    out property <bool> bedtime-ok: root.valid-time(root.bedtime-text);
+    property <[string]> palette-names: ["Warm", "Ocean", "Forest", "Lavender", "Slate", "Rose"];
+    property <[color]> swatches: [#c9a86c, #5b9bd5, #6b9b6b, #9b7bb8, #6b7b8b, #c98b9b];
+
+    // Save: focus the first invalid field instead, like v2.
+    function try-save() {
+        if !root.interval-ok { interval-field.grab(); return; }
+        if !root.break-ok { break-field.grab(); return; }
+        if root.sleep-on && !root.bedtime-ok { return; } // the field is already red
+        if root.limiter-on && !root.hours-ok { return; } // ditto (inside an `if`, not focusable from here)
+        root.save();
+    }
+
+    VerticalLayout {
+        PanelHeader { title: "Settings"; drag => { root.drag(); } close-clicked => { root.cancel(); } }
+        PanelScroll {
+            vertical-stretch: 1;
+
+            SectionTitle { text: "Appearance"; }
+            Rectangle { height: 12px; }
+            HorizontalLayout {
+                min-height: 36px;
+                spacing: 16px;
+                Label { text: "Mode"; horizontal-stretch: 1; }
+                HorizontalLayout {
+                    spacing: 6px;
+                    alignment: end;
+                    Chip { text: "Dark"; active: Theme.dark; y: (parent.height - self.height) / 2; clicked => { Theme.dark = true; } }
+                    Chip { text: "Light"; active: !Theme.dark; y: (parent.height - self.height) / 2; clicked => { Theme.dark = false; } }
+                }
+            }
+            Rectangle { height: 14px; }
+            HorizontalLayout {
+                min-height: 36px;
+                spacing: 16px;
+                Label { text: "Color"; horizontal-stretch: 1; }
+                HorizontalLayout {
+                    spacing: 10px;
+                    alignment: end;
+                    for swatch[i] in root.swatches: Rectangle {
+                        width: 24px;
+                        height: 24px;
+                        y: (parent.height - self.height) / 2;
+                        // Ring: 2px gap in the window colour, then 2px (picked) / 1px (hover).
+                        Rectangle {
+                            x: Theme.palette == i ? -4px : -3px;
+                            y: self.x;
+                            width: parent.width - 2 * self.x;
+                            height: self.width;
+                            border-radius: self.width / 2;
+                            border-width: Theme.palette == i ? 2px : swatch-area.has-hover ? 1px : 0;
+                            border-color: Theme.palette == i ? Theme.text-primary : Theme.text-muted;
+                        }
+                        Rectangle { border-radius: 12px; background: swatch; }
+                        swatch-area := TouchArea { mouse-cursor: pointer; clicked => { Theme.palette = i; } }
+                    }
+                }
+            }
+
+            SectionRule { }
+            SectionTitle { text: "Breaks"; }
+            Rectangle { height: 12px; }
+            Say {
+                Label { text: "Remind me every"; color: Theme.text-primary; } // v2: <label>, not a grey span
+                interval-field := Field { text <=> root.interval-text; error: !root.interval-ok; }
+                Label { text: "minutes"; }
+            }
+            Rectangle { height: 10px; }
+            HorizontalLayout {
+                spacing: 6px;
+                alignment: start;
+                for v in [30, 35, 40, 45, 50, 60]: Chip {
+                    text: v;
+                    active: root.interval-ok && floor(root.interval-text.to-float()) == v;
+                    clicked => { root.interval-text = v; }
+                }
+            }
+            Rectangle { height: 14px; }
+            Say {
+                Label { text: "Break lasts"; color: Theme.text-primary; } // v2: <label>, not a grey span
+                break-field := Field { text <=> root.break-text; error: !root.break-ok; }
+                Label { text: "seconds"; }
+            }
+            Rectangle { height: 10px; }
+            HorizontalLayout {
+                spacing: 6px;
+                alignment: start;
+                for v in [30, 60, 90, 120]: Chip {
+                    text: v;
+                    active: root.break-ok && floor(root.break-text.to-float()) == v;
+                    clicked => { root.break-text = v; }
+                }
+            }
+            Rectangle { height: 14px; }
+            HorizontalLayout {
+                min-height: 36px;
+                spacing: 16px;
+                VerticalLayout {
+                    alignment: center;
+                    horizontal-stretch: 1;
+                    Text { text: "Emergency unlock"; color: Theme.text-primary; }
+                    Hint { text: "Hold 5 seconds to leave a break early"; }
+                }
+                Switch { checked <=> root.emergency; y: (parent.height - self.height) / 2; }
+            }
+
+            SectionRule { }
+            HorizontalLayout {
+                min-height: 36px;
+                spacing: 16px;
+                VerticalLayout {
+                    alignment: center;
+                    horizontal-stretch: 1;
+                    SectionTitle { text: "Sleep Mode"; }
+                    Hint { text: "Shuts the computer down at bedtime"; }
+                }
+                Switch { checked <=> root.sleep-on; y: (parent.height - self.height) / 2; }
+            }
+            if root.sleep-on: VerticalLayout {
+                padding-top: 14px;
+                Say {
+                    Label { text: "Bedtime"; color: Theme.text-primary; } // v2: <label>, not a grey span
+                    Field {
+                        text <=> root.bedtime-text;
+                        field-width: 76px;
+                        kind: InputType.text;
+                        error: !root.bedtime-ok;
+                    }
+                }
+            }
+
+            SectionRule { }
+            HorizontalLayout {
+                min-height: 36px;
+                spacing: 16px;
+                VerticalLayout {
+                    alignment: center;
+                    horizontal-stretch: 1;
+                    SectionTitle { text: "Game Limiter"; }
+                    Hint { text: "Closes games past the daily limit"; }
+                }
+                Switch { checked <=> root.limiter-on; y: (parent.height - self.height) / 2; }
+            }
+            if root.limiter-on: VerticalLayout {
+                padding-top: 14px;
+                Say {
+                    Label { text: "Daily limit"; color: Theme.text-primary; } // v2: <label>, not a grey span
+                    Field { text <=> root.hours-text; kind: InputType.decimal; error: !root.hours-ok; }
+                    Label { text: "hours"; }
+                }
+                Rectangle { height: 18px; }
+                Label { text: "Games"; }
+                Rectangle { height: 4px; }
+                for game[i] in root.games: VerticalLayout {
+                    HorizontalLayout {
+                        padding-top: 6px;
+                        padding-bottom: 6px;
+                        spacing: 12px;
+                        Text {
+                            text: game.name;
+                            color: Theme.text-primary;
+                            overflow: elide;
+                            vertical-alignment: center;
+                            horizontal-stretch: 1;
+                        }
+                        Rectangle {
+                            horizontal-stretch: 0;
+                            width: pause-row.preferred-width;
+                            pause-row := HorizontalLayout {
+                                spacing: 6px;
+                                Check { checked: game.pause; y: (parent.height - self.height) / 2; }
+                                Text { text: "Pause breaks"; font-size: 12.5px; color: Theme.text-secondary; vertical-alignment: center; }
+                            }
+                            TouchArea { mouse-cursor: pointer; clicked => { root.games[i].pause = !game.pause; } }
+                        }
+                        Rectangle {
+                            width: 32px;
+                            height: 32px;
+                            border-radius: 16px;
+                            background: remove-area.has-hover ? Theme.text-primary.with-alpha(0.09) : transparent;
+                            Path {
+                                width: 14px;
+                                height: 14px;
+                                viewbox-width: 14;
+                                viewbox-height: 14;
+                                commands: "M 2 2 L 12 12 M 12 2 L 2 12";
+                                stroke: remove-area.has-hover ? Theme.danger : Theme.text-secondary;
+                                stroke-width: 1.6px;
+                                stroke-line-cap: round;
+                                fill: transparent;
+                            }
+                            remove-area := TouchArea { mouse-cursor: pointer; clicked => { root.remove-game(i); } }
+                        }
+                    }
+                    Rectangle { height: 1px; background: Theme.border-subtle; }
+                }
+                if root.games.length == 0: VerticalLayout {
+                    padding-top: 6px;
+                    Hint { text: "No games added yet."; }
+                }
+                HorizontalLayout {
+                    padding-top: 12px;
+                    spacing: 8px;
+                    alignment: start;
+                    PillButton { text: "Add game…"; small: true; clicked => { root.add-game(); } }
+                    PillButton { text: "Scan Steam games"; small: true; enabled: !root.scanning; clicked => { root.scan-steam(); } }
+                }
+                if root.scan-open: VerticalLayout {
+                    padding-top: 12px;
+                    Rectangle {
+                        border-width: 1px;
+                        border-color: Theme.border-subtle;
+                        border-radius: 12px;
+                        VerticalLayout {
+                            padding: 12px;
+                            if root.scan-status != "": Hint { text: root.scan-status; }
+                            if root.scan-rows.length > 0: Flickable {
+                                height: min(220px, scan-list.preferred-height + 8px);
+                                content-height: scan-list.preferred-height + 8px;
+                                scan-list := VerticalLayout {
+                                    y: 8px;
+                                    width: parent.width;
+                                    for row[i] in root.scan-rows: Rectangle {
+                                        height: 7px * 2 + max(15px, scan-name.preferred-height);
+                                        border-radius: 8px;
+                                        background: scan-area.has-hover && !row.added ? Theme.accent-soft : transparent;
+                                        opacity: row.added ? 0.55 : 1;
+                                        HorizontalLayout {
+                                            padding-left: 8px;
+                                            padding-right: 8px;
+                                            spacing: 10px;
+                                            Check { checked: row.checked || row.added; y: (parent.height - self.height) / 2; }
+                                            scan-name := Text {
+                                                text: row.name;
+                                                font-size: 13px;
+                                                color: Theme.text-primary;
+                                                wrap: word-wrap;
+                                                vertical-alignment: center;
+                                                horizontal-stretch: 1;
+                                            }
+                                            Text {
+                                                text: row.added ? row.exe + " · added" : row.exe;
+                                                font-size: 12px;
+                                                color: Theme.text-secondary;
+                                                vertical-alignment: center;
+                                                horizontal-stretch: 0;
+                                            }
+                                        }
+                                        scan-area := TouchArea {
+                                            enabled: !row.added;
+                                            mouse-cursor: row.added ? default : pointer;
+                                            clicked => { root.scan-rows[i].checked = !row.checked; }
+                                        }
+                                    }
+                                }
+                            }
+                            if root.scan-rows.length > 0: HorizontalLayout {
+                                padding-top: 10px;
+                                spacing: 8px;
+                                alignment: start;
+                                PillButton { text: "Add selected"; kind: 1; small: true; clicked => { root.add-selected(); } }
+                                PillButton { text: "Close list"; kind: 3; small: true; clicked => { root.close-scan(); } }
+                            }
+                        }
+                    }
+                }
+            }
+
+            SectionRule { }
+            HorizontalLayout {
+                min-height: 36px;
+                SectionTitle { text: "Launch at startup"; vertical-alignment: center; horizontal-stretch: 1; }
+                Switch { checked <=> root.launch; y: (parent.height - self.height) / 2; }
+            }
+        }
+        PanelFooter {
+            Rectangle { horizontal-stretch: 1; }
+            PillButton { text: "Cancel"; width: 104px; clicked => { root.cancel(); } }
+            PillButton { text: "Save"; kind: 1; width: 104px; clicked => { root.try-save(); } }
+        }
+    }
+}

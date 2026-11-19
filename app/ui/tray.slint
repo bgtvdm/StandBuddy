@@ -1,0 +1,15 @@
+// Tray icon and menu. Rust sets `paused` and `tip`; every menu entry calls `menu(id)`.
+export component Tray inherits SystemTrayIcon {
+    in property <bool> paused;
+    in property <string> tip: "StandBuddy";
+    callback menu(string);
+    icon: @image-url("../../assets/tray.png");
+    tooltip: root.tip;
+    Menu {
+        MenuItem { title: root.paused ? "Resume" : "Pause"; activated => { root.menu("pause"); } }
+        MenuItem { title: "Stats"; activated => { root.menu("stats"); } }
+        MenuItem { title: "Settings..."; activated => { root.menu("settings"); } }
+        MenuSeparator { }
+        MenuItem { title: "Quit"; activated => { root.menu("quit"); } }
+    }
+}

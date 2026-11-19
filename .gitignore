@@ -29,3 +29,6 @@ asar_out/
 devkit/
 CLAUDE.md
 AGENTS.md
+
+# Rust build output
+target/

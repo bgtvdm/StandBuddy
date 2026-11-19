@@ -1,0 +1,205 @@
+// Break overlay — v2 ui/break.html 1:1 where the software renderer allows. Rust sets the
+// theme, the baked background, the icon, the tip and, once a second, `time` + `progress`.
+// Not ported: drifting glow (static, baked), text-shadow on the timer, the tip's backdrop blur.
+import { Theme } from "theme.slint";
+import "fonts/DMSans-Variable.ttf";
+import "fonts/DMSerifDisplay-Regular.ttf";
+
+export component Break inherits Window {
+    in property <image> bg;
+    in property <image> break-icon;
+    in property <string> time: "0:00";
+    in property <float> progress: 0;
+    in property <bool> emergency: true;
+    in property <string> tip-text;
+    in property <string> tip-category;
+    callback skip();
+
+    title: "StandBuddy break";
+    no-frame: true;
+    always-on-top: true;
+    default-font-family: "DM Sans";
+    background: Theme.overlay-bg-1;
+
+    // Emergency hold: 5 s of continuous left-button press on the button.
+    property <duration> held: 0;
+    // Mirrored from the button's TouchArea (ids inside `if` aren't visible up here).
+    property <bool> btn-pressed;
+    property <bool> btn-hover;
+    property <bool> holding: root.btn-pressed && root.btn-hover;
+    changed holding => { if !self.holding { self.held = 0; } }
+    Timer {
+        interval: 50ms;
+        running: root.holding && root.emergency;
+        triggered => {
+            root.held += 50ms;
+            if root.held >= 5s { root.held = 0; root.skip(); }
+        }
+    }
+
+    Image { width: 100%; height: 100%; source: root.bg; image-fit: fill; }
+
+    VerticalLayout {
+        alignment: center;
+        HorizontalLayout {
+            alignment: center;
+            VerticalLayout {
+                alignment: start;
+                width: 480px; // the tip block's max-width; everything else is narrower
+
+                // 72 px emoji (92 px box, see ui.rs `icon`), bobbing 8 px every 3 s (owner's choice: kept).
+                Rectangle {
+                    height: 92px + 8px + 24px;
+                    Image {
+                        source: root.break-icon;
+                        width: 92px;
+                        height: 92px;
+                        y: 8px - 4px * (1 - cos(animation-tick() / 3s * 360deg));
+                    }
+                }
+                Text {
+                    text: "Time to Stand!";
+                    font-family: "DM Serif Display";
+                    font-size: 52px;
+                    letter-spacing: -0.5px;
+                    color: Theme.overlay-text;
+                    horizontal-alignment: center;
+                }
+                Rectangle { height: 12px; }
+                Text {
+                    text: "Take a moment to stretch and move around";
+                    font-size: 20px;
+                    font-weight: 300;
+                    letter-spacing: 0.3px;
+                    color: Theme.overlay-text-secondary;
+                    horizontal-alignment: center;
+                }
+                Rectangle { height: 48px; }
+                Text {
+                    text: root.time;
+                    font-size: 80px;
+                    font-weight: 300;
+                    letter-spacing: -2px;
+                    color: Theme.overlay-accent;
+                    horizontal-alignment: center;
+                }
+                Rectangle { height: 32px; }
+                HorizontalLayout {
+                    alignment: center;
+                    Rectangle {
+                        width: 320px;
+                        height: 4px;
+                        border-radius: 2px;
+                        background: #faf6f01a;
+                        Rectangle {
+                            x: 0;
+                            width: parent.width * clamp(root.progress, 0, 1);
+                            border-radius: 2px;
+                            background: @linear-gradient(90deg, Theme.overlay-accent-dim 0%, Theme.overlay-accent 100%);
+                        }
+                    }
+                }
+                Rectangle { height: 48px; }
+
+                if root.emergency: VerticalLayout {
+                    spacing: 10px;
+                    HorizontalLayout {
+                        alignment: center;
+                        Rectangle {
+                            width: btn-text.preferred-width + 64px;
+                            height: 14px * 2 + btn-text.preferred-height;
+                            border-radius: self.height / 2;
+                            border-width: 1px;
+                            border-color: root.holding ? Theme.overlay-danger-soft
+                                : root.btn-hover ? Theme.overlay-text-secondary : Theme.overlay-text-muted;
+                            animate border-color { duration: 250ms; }
+                            clip: true;
+                            Rectangle {
+                                x: 0;
+                                width: parent.width * (root.held / 5s);
+                                border-radius: parent.height / 2;
+                                background: Theme.overlay-danger-fill;
+                            }
+                            btn-text := Text {
+                                text: "Emergency Unlock";
+                                font-size: 14px;
+                                letter-spacing: 0.3px;
+                                color: root.holding ? Theme.overlay-text
+                                    : root.btn-hover ? Theme.overlay-text-secondary : Theme.overlay-text-muted;
+                                animate color { duration: 250ms; }
+                            }
+                            TouchArea {
+                                mouse-cursor: pointer;
+                                changed pressed => { root.btn-pressed = self.pressed; }
+                                changed has-hover => { root.btn-hover = self.has-hover; }
+                            }
+                        }
+                    }
+                    Text {
+                        text: !root.holding ? "Hold for 5 seconds to unlock"
+                            : root.held > 0 ? "Keep holding… \{ceil((5s - root.held) / 1s)}s" : "Keep holding…";
+                        font-size: 13px;
+                        font-weight: 300;
+                        min-height: 20px;
+                        color: root.holding ? Theme.overlay-danger-soft : Theme.overlay-text-muted;
+                        horizontal-alignment: center;
+                    }
+                }
+
+                if root.tip-text != "": VerticalLayout {
+                    padding-top: 40px;
+                    Rectangle {
+                        border-radius: 16px;
+                        border-width: 1px;
+                        border-color: #ffffff0f;
+                        background: #ffffff0a;
+                        VerticalLayout {
+                            padding-left: 32px;
+                            padding-right: 32px;
+                            padding-top: 24px;
+                            padding-bottom: 24px;
+                            spacing: 12px;
+                            HorizontalLayout {
+                                alignment: center;
+                                spacing: 10px;
+                                Text {
+                                    text: "TIP FOR THIS BREAK";
+                                    font-size: 11px;
+                                    font-weight: 500;
+                                    letter-spacing: 1.5px;
+                                    color: Theme.overlay-text-muted;
+                                    vertical-alignment: center;
+                                }
+                                if root.tip-category != "": Rectangle {
+                                    border-radius: self.height / 2;
+                                    background: Theme.overlay-accent-glow;
+                                    HorizontalLayout {
+                                        padding-left: 10px;
+                                        padding-right: 10px;
+                                        padding-top: 3px;
+                                        padding-bottom: 3px;
+                                        Text {
+                                            text: root.tip-category;
+                                            font-size: 10px;
+                                            font-weight: 500;
+                                            letter-spacing: 0.5px;
+                                            color: Theme.overlay-accent;
+                                        }
+                                    }
+                                }
+                            }
+                            Text {
+                                text: root.tip-text;
+                                font-size: 17px;
+                                font-weight: 300;
+                                wrap: word-wrap;
+                                color: Theme.overlay-text-secondary;
+                                horizontal-alignment: center;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

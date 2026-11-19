@@ -1,0 +1,74 @@
+// Game limit reached — v2 ui/game-blocked.html 1:1 where the software renderer allows. Rust
+// sets the theme, background, icon and `limit-hours`, and closes it after 5.5 s.
+// Not ported: the 15 s glow pulse (static, baked).
+import { Theme } from "theme.slint";
+import "fonts/DMSans-Variable.ttf";
+import "fonts/DMSerifDisplay-Regular.ttf";
+
+export component GameBlocked inherits Window {
+    in property <image> bg;
+    in property <image> hourglass-icon;
+    in property <string> limit-hours;
+
+    title: "StandBuddy game limit";
+    no-frame: true;
+    always-on-top: true;
+    default-font-family: "DM Sans";
+    background: Theme.overlay-bg-1;
+
+    property <int> remaining: 5;
+    Timer {
+        interval: 1s;
+        running: root.remaining > 0;
+        triggered => { root.remaining -= 1; }
+    }
+
+    Image { width: 100%; height: 100%; source: root.bg; image-fit: fill; }
+
+    VerticalLayout {
+        alignment: center;
+        HorizontalLayout {
+            alignment: center;
+            VerticalLayout {
+                alignment: start;
+
+                // 88 px emoji (113 px box, see ui.rs `icon`), floating 6 px every 4 s.
+                Rectangle {
+                    height: 6px + 113px + 28px;
+                    Image {
+                        source: root.hourglass-icon;
+                        width: 113px;
+                        height: 113px;
+                        y: 6px - 3px * (1 - cos(animation-tick() / 4s * 360deg));
+                    }
+                }
+                Text {
+                    text: "Game Limit Reached";
+                    font-family: "DM Serif Display";
+                    font-size: 52px;
+                    letter-spacing: -0.5px;
+                    color: Theme.overlay-text;
+                    horizontal-alignment: center;
+                }
+                Rectangle { height: 20px; }
+                Text {
+                    text: root.limit-hours != ""
+                        ? "You've reached your \{root.limit-hours}h daily game limit. See you tomorrow."
+                        : "You've used your daily game time. See you tomorrow.";
+                    font-size: 26px;
+                    font-weight: 300;
+                    letter-spacing: 0.3px;
+                    color: Theme.overlay-accent;
+                    horizontal-alignment: center;
+                }
+                Rectangle { height: 44px; }
+                HorizontalLayout {
+                    alignment: center;
+                    Text { text: "Closing in "; font-size: 18px; font-weight: 300; color: Theme.overlay-text-muted; vertical-alignment: bottom; }
+                    Text { text: root.remaining; font-size: 22px; font-weight: 500; color: Theme.overlay-accent; vertical-alignment: bottom; }
+                    Text { text: " seconds"; font-size: 18px; font-weight: 300; color: Theme.overlay-text-muted; vertical-alignment: bottom; }
+                }
+            }
+        }
+    }
+}

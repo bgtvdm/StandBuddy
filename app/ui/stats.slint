@@ -1,0 +1,230 @@
+// Stats panel — v2 ui/stats.html 1:1 where the software renderer allows (no window shadow
+// blur beyond the system's; achievement descriptions show as an in-window tooltip on hover).
+import { Theme } from "theme.slint";
+import { PanelHeader, PillButton, SectionRule, Hint, SectionTitle, PanelScroll, PanelFooter } from "panel.slint";
+import "fonts/DMSans-Variable.ttf";
+import "fonts/DMSerifDisplay-Regular.ttf";
+
+export struct StatsDay {
+    completed: int,
+    name: string,
+}
+
+export struct Badge {
+    name: string,
+    description: string,
+    icon: image,
+    unlocked: bool,
+}
+
+component TodayCell inherits VerticalLayout {
+    in property <string> value;
+    in property <string> label;
+    in property <bool> first;
+    padding-left: root.first ? 0 : 14px;
+    Text { text: root.value; font-size: 26px; font-weight: 300; height: 30px; color: Theme.text-primary; } // line-height 1.15
+    Text { text: root.label; font-size: 12.5px; color: Theme.text-secondary; }
+}
+
+export component Stats inherits Window {
+    in property <int> streak;
+    in property <int> today-completed;
+    in property <int> today-emergency;
+    in property <int> today-shown;
+    in property <string> today-minutes: "0";
+    in property <[StatsDay]> days;
+    in property <string> avg-text;
+    in property <[Badge]> badges;
+    callback drag();
+    callback close-clicked();
+    callback reset();
+
+    title: "StandBuddy Stats";
+    no-frame: true;
+    width: 480px;
+    height: 720px;
+    default-font-family: "DM Sans";
+    default-font-size: 14px;
+    background: Theme.bg-base;
+
+    in property <int> max-completed: 1; // tallest bar's count, at least 1
+    in property <int> unlocked-count;
+    property <bool> confirming;
+    // Hovered achievement for the tooltip: index and its cell's position in the window.
+    property <int> tip-index: -1;
+    property <length> tip-x;
+    property <length> tip-y;
+
+    VerticalLayout {
+        PanelHeader { title: "Stats"; drag => { root.drag(); } close-clicked => { root.close-clicked(); } }
+        PanelScroll {
+            vertical-stretch: 1;
+            // Streak.
+            HorizontalLayout {
+                spacing: 16px;
+                Text {
+                    text: root.streak;
+                    font-size: 56px;
+                    font-weight: 300;
+                    letter-spacing: -1.68px;
+                    height: 56px; // line-height: 1
+                    color: Theme.accent-ink;
+                    vertical-alignment: center;
+                    horizontal-stretch: 0;
+                }
+                VerticalLayout {
+                    alignment: center;
+                    horizontal-stretch: 1;
+                    Text { text: "day streak"; font-size: 15px; font-weight: 600; color: Theme.text-primary; }
+                    Hint { text: "Days in a row with at least one completed break"; }
+                }
+            }
+            SectionRule { }
+            SectionTitle { text: "Today"; }
+            HorizontalLayout {
+                padding-top: 14px;
+                TodayCell { first: true; value: root.today-completed; label: "Completed"; horizontal-stretch: 1; }
+                Rectangle { width: 1px; background: Theme.border-subtle; }
+                TodayCell { value: root.today-emergency; label: "Skipped"; horizontal-stretch: 1; }
+                Rectangle { width: 1px; background: Theme.border-subtle; }
+                TodayCell { value: root.today-shown; label: "Shown"; horizontal-stretch: 1; }
+                Rectangle { width: 1px; background: Theme.border-subtle; }
+                TodayCell { value: root.today-minutes; label: "Minutes away"; horizontal-stretch: 1; }
+            }
+            SectionRule { }
+            SectionTitle { text: "Last 7 days"; }
+            HorizontalLayout {
+                padding-top: 12px;
+                spacing: 10px;
+                height: 12px + 120px;
+                for day in root.days: VerticalLayout {
+                    horizontal-stretch: 1;
+                    alignment: end;
+                    Text {
+                        text: day.completed > 0 ? day.completed : "";
+                        min-height: 18px;
+                        font-size: 12px;
+                        color: Theme.text-secondary;
+                        horizontal-alignment: center;
+                        vertical-alignment: bottom;
+                    }
+                    HorizontalLayout {
+                        alignment: center;
+                        Rectangle {
+                            // Tallest bar 70px; a day with no breaks keeps a 2px stub.
+                            width: 36px; // max-width 36px; the 7 columns are ~53px wide
+                            height: day.completed > 0 ? max(6px, round(day.completed / root.max-completed * 70) * 1px) : 2px;
+                            border-top-left-radius: 4px;
+                            border-top-right-radius: 4px;
+                            background: day.completed > 0 ? Theme.accent : Theme.text-primary.with-alpha(0.18);
+                        }
+                    }
+                    Rectangle { height: 6px; }
+                    Rectangle { height: 1px; background: Theme.border-subtle; }
+                    Text {
+                        text: day.name;
+                        font-size: 12px;
+                        color: Theme.text-secondary;
+                        horizontal-alignment: center;
+                        height: 6px + self.preferred-height;
+                        vertical-alignment: bottom;
+                    }
+                }
+            }
+            Rectangle { height: 12px; }
+            Hint { text: root.avg-text; }
+            SectionRule { }
+            HorizontalLayout {
+                SectionTitle { text: "Achievements"; horizontal-stretch: 1; }
+                Hint { text: "\{root.unlocked-count} of \{root.badges.length} unlocked"; horizontal-stretch: 0; wrap: no-wrap; }
+            }
+            Rectangle { height: 14px; }
+            // 4-column grid, 8px gaps.
+            achievements := Rectangle {
+                property <length> cell-w: (self.width - 3 * 8px) / 4;
+                property <length> cell-h: 12px + 24px + 6px + 2 * 14.4px + 10px; // icon line-height 1, name 1.25
+                height: ceil(root.badges.length / 4) * (self.cell-h + 8px) - 8px;
+                for badge[i] in root.badges: Rectangle {
+                    x: mod(i, 4) * (parent.cell-w + 8px);
+                    y: floor(i / 4) * (parent.cell-h + 8px);
+                    width: parent.cell-w;
+                    height: parent.cell-h;
+                    border-radius: 12px;
+                    background: badge.unlocked ? Theme.accent-soft : transparent;
+                    opacity: badge.unlocked ? 1 : 0.45;
+                    VerticalLayout {
+                        padding-top: 12px;
+                        padding-bottom: 10px;
+                        padding-left: 6px;
+                        padding-right: 6px;
+                        spacing: 6px;
+                        alignment: start;
+                        // 24 px emoji (31 px box, see ui.rs `icon`) on a 24 px line, like v2.
+                        Rectangle {
+                            height: 24px;
+                            Image { source: badge.icon; width: 31px; height: 31px; y: -3.5px; }
+                        }
+                        Text {
+                            text: badge.name;
+                            font-size: 11.5px;
+                            color: badge.unlocked ? Theme.text-primary : Theme.text-secondary;
+                            horizontal-alignment: center;
+                            wrap: word-wrap;
+                        }
+                    }
+                    TouchArea {
+                        mouse-cursor: help;
+                        changed has-hover => {
+                            if self.has-hover {
+                                root.tip-index = i;
+                                root.tip-x = self.absolute-position.x;
+                                root.tip-y = self.absolute-position.y + parent.height + 4px;
+                            } else if root.tip-index == i {
+                                root.tip-index = -1;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if !root.confirming: PanelFooter {
+            left-pad: 24px - 14px; // v2: .foot .btn-quiet { margin-left: -14px }
+            PillButton { text: "Reset stats…"; kind: 3; clicked => { root.confirming = true; } }
+            Rectangle { horizontal-stretch: 1; }
+        }
+        if root.confirming: PanelFooter {
+            Text {
+                text: "Delete all stats and achievements? This cannot be undone.";
+                font-size: 13px;
+                color: Theme.text-primary;
+                wrap: word-wrap;
+                vertical-alignment: center;
+                horizontal-stretch: 1;
+            }
+            PillButton { text: "Keep"; y: (parent.height - self.height) / 2; clicked => { root.confirming = false; } }
+            PillButton { text: "Delete"; kind: 2; clicked => { root.confirming = false; root.reset(); } }
+        }
+    }
+
+    // Hover tooltip (v2: the browser's native `title` tooltip).
+    if root.tip-index >= 0: Rectangle {
+        property <length> w: min(240px, tip-text.preferred-width + 16px);
+        x: clamp(root.tip-x, 8px, root.width - self.w - 8px);
+        y: min(root.tip-y, root.height - self.height - 8px);
+        width: self.w;
+        height: tip-text.preferred-height + 10px;
+        border-radius: 6px;
+        background: Theme.bg-card;
+        border-width: 1px;
+        border-color: Theme.border-subtle;
+        tip-text := Text {
+            x: 8px;
+            width: parent.width - 16px;
+            text: root.badges[root.tip-index].description;
+            font-size: 12px;
+            color: Theme.text-primary;
+            wrap: word-wrap;
+            vertical-alignment: center;
+        }
+    }
+}

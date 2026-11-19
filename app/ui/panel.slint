@@ -1,0 +1,156 @@
+// Shared chrome for the frameless panels (Settings, Stats) — v2 ui/panel.css: header that
+// doubles as the title bar (drag anywhere, close on the right), scroll area with a thin
+// themed thumb, footer, pill buttons, sections divided by a hairline.
+import { Theme } from "theme.slint";
+
+export component PanelHeader inherits Rectangle {
+    in property <string> title;
+    callback drag();
+    callback close-clicked();
+    height: 16px + 29px + 12px;
+    TouchArea {
+        // Drag starts on press, like a native title bar.
+        pointer-event(e) => { if e.kind == PointerEventKind.down && e.button == PointerEventButton.left { root.drag(); } }
+    }
+    HorizontalLayout {
+        padding-left: 24px;
+        padding-right: 14px;
+        padding-top: 16px;
+        padding-bottom: 12px;
+        Text {
+            text: root.title;
+            font-family: "DM Serif Display";
+            font-size: 26px;
+            letter-spacing: -0.26px;
+            color: Theme.text-primary;
+            vertical-alignment: center;
+        }
+        Rectangle {
+            width: 32px;
+            height: 32px;
+            y: (parent.height - self.height) / 2 - 2px;
+            border-radius: 16px;
+            background: close-area.has-hover ? Theme.text-primary.with-alpha(0.09) : transparent;
+            animate background { duration: 150ms; }
+            Path {
+                width: 14px;
+                height: 14px;
+                viewbox-width: 14;
+                viewbox-height: 14;
+                commands: "M 2 2 L 12 12 M 12 2 L 2 12";
+                stroke: close-area.has-hover ? Theme.text-primary : Theme.text-secondary;
+                stroke-width: 1.6px;
+                stroke-line-cap: round;
+                fill: transparent;
+            }
+            close-area := TouchArea { mouse-cursor: pointer; clicked => { root.close-clicked(); } }
+        }
+    }
+}
+
+// .btn and its variants: 0 = outline, 1 = primary (accent), 2 = danger, 3 = quiet.
+export component PillButton inherits Rectangle {
+    in property <string> text;
+    in property <int> kind: 0;
+    in property <bool> small;
+    in property <bool> enabled: true;
+    callback clicked();
+    height: root.small ? 32px : 40px;
+    width: label.preferred-width + (root.small ? 28px : 40px);
+    border-radius: self.height / 2;
+    opacity: root.enabled ? 1 : 0.5;
+    border-width: root.kind == 0 ? 1px : 0;
+    border-color: area.has-hover ? Theme.text-secondary : Theme.text-primary.with-alpha(0.22);
+    background: root.kind == 1 ? (area.has-hover ? Theme.accent-hover : Theme.accent)
+        : root.kind == 2 ? Theme.danger
+        : root.kind == 3 && area.has-hover ? Theme.text-primary.with-alpha(0.08)
+        : transparent;
+    animate background, border-color { duration: 150ms; }
+    label := Text {
+        text: root.text;
+        font-size: root.small ? 13px : 14px;
+        font-weight: root.kind == 1 || root.kind == 2 ? 600 : 500;
+        color: root.kind == 1 || root.kind == 2 ? Theme.text-on-accent
+            : root.kind == 3 && !area.has-hover ? Theme.text-secondary
+            : Theme.text-primary;
+        vertical-alignment: center;
+        horizontal-alignment: center;
+    }
+    area := TouchArea {
+        enabled: root.enabled;
+        mouse-cursor: root.enabled ? pointer : default;
+        clicked => { root.clicked(); }
+    }
+}
+
+// section + section: 22px gap, hairline, 20px gap.
+export component SectionRule inherits VerticalLayout {
+    padding-top: 22px;
+    padding-bottom: 20px;
+    Rectangle { height: 1px; background: Theme.border-subtle; }
+}
+
+export component Hint inherits Text {
+    font-size: 12.5px;
+    color: Theme.text-secondary;
+    wrap: word-wrap;
+}
+
+export component SectionTitle inherits Text {
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: -0.075px;
+    color: Theme.text-primary;
+}
+
+// .scroll: padding 8 24 24, a 10px-wide thumb (3px inset) and no track.
+export component PanelScroll inherits Rectangle {
+    in-out property <length> content-y <=> flick.content-y;
+    flick := Flickable {
+        width: root.width;
+        height: root.height;
+        content-height: content.preferred-height;
+        content := VerticalLayout {
+            width: root.width;
+            padding-left: 24px;
+            padding-right: 24px;
+            padding-top: 8px;
+            padding-bottom: 24px;
+            @children
+        }
+    }
+    if flick.content-height > root.height: Rectangle {
+        x: root.width - 10px + 3px;
+        width: 4px;
+        height: max(24px, (root.height - 6px) * root.height / flick.content-height);
+        y: 3px + (root.height - 6px - self.height) * (-flick.content-y / max(1px, flick.content-height - root.height));
+        border-radius: 2px;
+        background: thumb-area.has-hover ? Theme.text-primary.with-alpha(0.40) : Theme.text-primary.with-alpha(0.24);
+        thumb-area := TouchArea {
+            property <length> grab-y;
+            pointer-event(e) => { if e.kind == PointerEventKind.down { self.grab-y = self.mouse-y; } }
+            moved => {
+                if self.pressed {
+                    flick.content-y = clamp(
+                        flick.content-y - (self.mouse-y - self.grab-y) * flick.content-height / (root.height - 6px),
+                        root.height - flick.content-height, 0px);
+                }
+            }
+        }
+    }
+}
+
+// .foot: hairline on top, 14 24 padding.
+export component PanelFooter inherits VerticalLayout {
+    in property <length> left-pad: 24px;
+    Rectangle { height: 1px; background: Theme.border-subtle; }
+    HorizontalLayout {
+        padding-left: root.left-pad;
+        padding-right: 24px;
+        padding-top: 14px;
+        padding-bottom: 14px;
+        spacing: 10px;
+        min-height: 68px;
+        @children
+    }
+}
